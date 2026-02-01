@@ -1149,6 +1149,9 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   // Onboarding status
   if (path === '/api/onboarding' && method === 'GET') return handleGetOnboarding(auth.agent, env);
   
+  // WebSocket status (authenticated)
+  if (path === '/api/ws/status' && method === 'GET') return handleGetWebSocketStatus(env);
+  
   if (path === '/api/my/sites' && method === 'GET') return handleMySites(env, auth.agent);
   
   // Inbox & Messaging
@@ -5323,13 +5326,17 @@ async function handleGetStats(env: Env): Promise<Response> {
   const foundingAgents = await env.DB.prepare('SELECT COUNT(*) as count FROM agents WHERE is_founding = 1').first() as any;
   const foundingSpotsLeft = Math.max(0, 100 - (foundingAgents?.count || 0));
   
+  // Get WebSocket connection counts
+  const wsStatus = await getWebSocketStatus(env);
+  
   return jsonResponse({
     sites: sites?.count || 0,
     agents: agents?.count || 0,
     founding_agents: foundingAgents?.count || 0,
     founding_spots_left: foundingSpotsLeft,
     guestbook_entries: guestbook?.count || 0,
-    wallets_connected: walletsRegistered?.count || 0
+    wallets_connected: walletsRegistered?.count || 0,
+    websocket_connections: wsStatus.total
   });
 }
 
@@ -6164,6 +6171,15 @@ async function handlePostTownSquare(request: Request, env: Env, agent: any): Pro
   
   // Get agent's site for response
   const site = await env.DB.prepare('SELECT slug FROM sites WHERE agent_id = ? LIMIT 1').bind(agent.id).first() as any;
+  
+  // Broadcast to all connected Town Square listeners
+  broadcastToTownSquare({
+    id,
+    agent_id: agent.id,
+    agent_name: agent.name,
+    message: message.trim(),
+    created_at: now,
+  }, env).catch(() => {}); // Fire and forget
   
   return jsonResponse({
     message: 'Posted to Town Square.',
@@ -12201,6 +12217,18 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
       UPDATE job_claims SET status = 'approved' WHERE id = ?
     `).bind(claimId).run();
     
+    // Notify job poster about the claim
+    pushNotificationToAgent(job.poster_id, {
+      event_type: 'job.claimed',
+      data: {
+        job_id: jobId,
+        job_title: job.title,
+        worker_id: agent.id,
+        worker_name: agent.name,
+        claim_id: claimId,
+      }
+    }, env).catch(() => {}); // Fire and forget
+    
     return jsonResponse({
       message: 'Job claimed! You are now the assigned worker.',
       claim_id: claimId,
@@ -12213,6 +12241,19 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
       }
     });
   }
+  
+  // Notify job poster about the pending claim
+  pushNotificationToAgent(job.poster_id, {
+    event_type: 'job.application',
+    data: {
+      job_id: jobId,
+      job_title: job.title,
+      applicant_id: agent.id,
+      applicant_name: agent.name,
+      claim_id: claimId,
+      message: message,
+    }
+  }, env).catch(() => {}); // Fire and forget
   
   return jsonResponse({
     message: 'Claim submitted. Waiting for poster approval.',
@@ -12620,6 +12661,20 @@ async function handleApproveJob(request: Request, jobId: string, env: Env, agent
   await env.DB.prepare(`
     UPDATE jobs SET status = 'completed', completed_at = datetime('now') WHERE id = ?
   `).bind(jobId).run();
+  
+  // Notify the worker their job was approved
+  if (job.worker_id) {
+    pushNotificationToAgent(job.worker_id, {
+      event_type: 'job.approved',
+      data: {
+        job_id: jobId,
+        job_title: job.title,
+        poster_id: agent.id,
+        poster_name: agent.name,
+        reward_lamports: job.reward_lamports,
+      }
+    }, env).catch(() => {}); // Fire and forget
+  }
   
   // Log the approval
   const verifyId = generateId();
@@ -13416,6 +13471,69 @@ async function getAgentConnectionStatus(agentId: string, env: Env): Promise<{ co
   } catch (e) {
     return { connected: false };
   }
+}
+
+// Get WebSocket connection counts from both DOs
+async function getWebSocketStatus(env: Env): Promise<{
+  town_square: { connections: number };
+  personal_notifiers: { total_connections: number };
+  total: number;
+}> {
+  let townSquareConnections = 0;
+  let personalConnections = 0;
+  
+  // Get Town Square DO status
+  try {
+    const doId = env.TOWN_SQUARE.idFromName('main');
+    const stub = env.TOWN_SQUARE.get(doId);
+    const response = await stub.fetch('https://internal/status');
+    const status = await response.json() as any;
+    townSquareConnections = status.active_connections || status.connections || 0;
+  } catch (e) {
+    console.error('Failed to get Town Square status:', e);
+  }
+  
+  // For personal notifiers, we'd need to aggregate across all agents
+  // This is a best-effort count - we check agents with recent activity
+  try {
+    const recentAgents = await env.DB.prepare(`
+      SELECT DISTINCT id FROM agents 
+      WHERE last_active_at > datetime('now', '-1 hour')
+      LIMIT 100
+    `).all() as any;
+    
+    const checkPromises = (recentAgents.results || []).map(async (agent: any) => {
+      try {
+        const doId = env.PERSONAL_NOTIFIER.idFromName(agent.id);
+        const stub = env.PERSONAL_NOTIFIER.get(doId);
+        const response = await stub.fetch('https://internal/status');
+        const status = await response.json() as any;
+        return status.active_connections || 0;
+      } catch {
+        return 0;
+      }
+    });
+    
+    const counts = await Promise.all(checkPromises);
+    personalConnections = counts.reduce((sum: number, c: number) => sum + c, 0);
+  } catch (e) {
+    console.error('Failed to aggregate personal notifier status:', e);
+  }
+  
+  return {
+    town_square: { connections: townSquareConnections },
+    personal_notifiers: { total_connections: personalConnections },
+    total: townSquareConnections + personalConnections
+  };
+}
+
+// Handler for /api/ws/status endpoint
+async function handleGetWebSocketStatus(env: Env): Promise<Response> {
+  const status = await getWebSocketStatus(env);
+  return jsonResponse({
+    websocket_status: status,
+    timestamp: new Date().toISOString()
+  });
 }
 
 // ============== Main Handler ==============
