@@ -3,7 +3,8 @@
  * "Permanent addresses for the agent internet"
  */
 
-import { createEscrowClient, EscrowClient, lamportsToSol, solToLamports } from './escrow';
+import { createEscrowClient, EscrowClient, lamportsToSol, solToLamports, computeProofHash } from './escrow';
+import { EscrowStatus, STATUS_NAMES as ESCROW_STATUS_NAMES, REVIEW_WINDOW_SECONDS } from './escrow/idl';
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 // @ts-ignore - WASM import
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
@@ -12589,6 +12590,11 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
   
   // For now, auto-assign first claimer (can add approval flow later)
   if (claimCount.count === 1) {
+    // Get poster wallet for escrow operations
+    const poster = await env.DB.prepare(
+      'SELECT wallet_address FROM agents WHERE id = ?'
+    ).bind(job.poster_id).first() as any;
+    
     await env.DB.prepare(`
       UPDATE jobs SET worker_id = ?, claimed_at = ?, status = 'claimed'
       WHERE id = ?
@@ -12597,6 +12603,51 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
     await env.DB.prepare(`
       UPDATE job_claims SET status = 'approved' WHERE id = ?
     `).bind(claimId).run();
+    
+    // If job has escrow, assign worker on-chain
+    let escrowAssignment: any = null;
+    if (job.escrow_address && poster?.wallet_address && agent.wallet_address) {
+      const escrowClient = createEscrowClient(env);
+      
+      if (escrowClient.getPlatformWalletInfo().configured) {
+        try {
+          const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(poster.wallet_address));
+          const signature = await escrowClient.assignWorker(escrowPDA, new PublicKey(agent.wallet_address));
+          
+          // Update job with escrow worker assignment
+          await env.DB.prepare(`
+            UPDATE jobs SET escrow_status = 'worker_assigned', escrow_worker_assigned_at = ? WHERE id = ?
+          `).bind(now, jobId).run();
+          
+          // Log escrow event
+          await env.DB.prepare(`
+            INSERT INTO escrow_events (id, job_id, event_type, transaction_signature, actor_id, actor_wallet, details)
+            VALUES (?, ?, 'worker_assigned', ?, ?, ?, ?)
+          `).bind(
+            generateId(), jobId, signature, agent.id, agent.wallet_address,
+            JSON.stringify({ worker_name: agent.name })
+          ).run();
+          
+          escrowAssignment = {
+            success: true,
+            signature,
+            explorer_url: `https://explorer.solana.com/tx/${signature}?cluster=${env.SOLANA_NETWORK || 'devnet'}`
+          };
+        } catch (e: any) {
+          console.error('Failed to assign worker on-chain:', e);
+          escrowAssignment = {
+            success: false,
+            error: e.message,
+            note: 'Worker assigned in platform DB. On-chain assignment can be retried.'
+          };
+        }
+      } else {
+        escrowAssignment = {
+          success: false,
+          reason: 'Platform wallet not configured'
+        };
+      }
+    }
     
     // Notify job poster about the claim
     pushNotificationToAgent(job.poster_id, {
@@ -12607,6 +12658,7 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
         worker_id: agent.id,
         worker_name: agent.name,
         claim_id: claimId,
+        escrow_assigned: escrowAssignment?.success || false,
       }
     }, env).catch(() => {}); // Fire and forget
     
@@ -12615,6 +12667,7 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
       claim_id: claimId,
       job_id: jobId,
       status: 'approved',
+      escrow: escrowAssignment,
       next_steps: {
         complete_work: 'Complete the verification requirements',
         submit: `POST /api/jobs/${jobId}/submit`,
@@ -12646,7 +12699,12 @@ async function handleClaimJob(request: Request, jobId: string, env: Env, agent: 
 
 // Submit work for verification (worker)
 async function handleSubmitJob(request: Request, jobId: string, env: Env, agent: any): Promise<Response> {
-  const job = await env.DB.prepare('SELECT * FROM jobs WHERE id = ?').bind(jobId).first() as any;
+  const job = await env.DB.prepare(`
+    SELECT j.*, p.wallet_address as poster_wallet
+    FROM jobs j
+    JOIN agents p ON j.poster_id = p.id
+    WHERE j.id = ?
+  `).bind(jobId).first() as any;
   
   if (!job) {
     return jsonResponse({ error: 'Job not found' }, 404);
@@ -12663,10 +12721,65 @@ async function handleSubmitJob(request: Request, jobId: string, env: Env, agent:
     }, 400);
   }
   
+  const body = await request.json().catch(() => ({})) as any;
+  const proofText = body.proof || body.proof_text || null;
+  
+  const now = new Date().toISOString();
+  const reviewDeadline = new Date(Date.now() + REVIEW_WINDOW_SECONDS * 1000).toISOString();
+  
   // Update status to pending verification
   await env.DB.prepare(`
-    UPDATE jobs SET status = 'pending_verification' WHERE id = ?
-  `).bind(jobId).run();
+    UPDATE jobs SET status = 'pending_verification', escrow_submitted_at = ?, escrow_review_deadline = ? WHERE id = ?
+  `).bind(now, reviewDeadline, jobId).run();
+  
+  // If job has escrow and worker has wallet, handle on-chain submission
+  let escrowSubmission: any = null;
+  if (job.escrow_address && job.poster_wallet && agent.wallet_address) {
+    const escrowClient = createEscrowClient(env);
+    
+    try {
+      const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(job.poster_wallet));
+      
+      // Compute proof hash if proof text provided
+      let proofHash: Uint8Array | null = null;
+      if (proofText) {
+        proofHash = await computeProofHash(proofText);
+      }
+      
+      // Build submit_work transaction for worker to sign
+      const tx = await escrowClient.buildSubmitWorkTx(escrowPDA, new PublicKey(agent.wallet_address), proofHash);
+      const serializedTx = tx.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false
+      }).toString('base64');
+      
+      // Update escrow status
+      await env.DB.prepare(`
+        UPDATE jobs SET escrow_status = 'work_submitted' WHERE id = ?
+      `).bind(jobId).run();
+      
+      escrowSubmission = {
+        status: 'transaction_ready',
+        transaction: {
+          serialized: serializedTx,
+          format: 'base64',
+          instructions: 'Sign with your wallet and submit to Solana network'
+        },
+        review_window: {
+          deadline: reviewDeadline,
+          auto_release_after: '24 hours if poster does not dispute'
+        },
+        note: 'Submit this transaction to record your work submission on-chain. If you skip this, the platform will still process the job but without on-chain proof.'
+      };
+    } catch (e: any) {
+      console.error('Failed to build submit_work tx:', e);
+      escrowSubmission = {
+        status: 'skipped',
+        reason: e.message,
+        note: 'On-chain submission failed, but job submission was recorded in platform DB'
+      };
+    }
+  }
   
   // If auto-verifiable, trigger verification
   const template = VERIFICATION_TEMPLATES[job.verification_template];
@@ -12680,20 +12793,27 @@ async function handleSubmitJob(request: Request, jobId: string, env: Env, agent:
         UPDATE jobs SET status = 'completed', completed_at = datetime('now') WHERE id = ?
       `).bind(jobId).run();
       
+      // Attempt escrow release if configured
+      let escrowRelease: any = null;
+      if (job.escrow_address && job.poster_wallet && agent.wallet_address) {
+        escrowRelease = await attemptEscrowRelease(jobId, job.poster_wallet, agent.wallet_address, env);
+      }
+      
       return jsonResponse({
-        message: 'Work verified and job completed!',
+        message: escrowRelease?.released ? 'Work verified and payment released!' : 'Work verified and job completed!',
         job_id: jobId,
         verification: verifyResult,
-        status: 'completed',
-        payment: {
-          note: 'Escrow release will be implemented when Solana program is deployed',
+        status: escrowRelease?.released ? 'paid' : 'completed',
+        escrow: escrowSubmission,
+        payment: escrowRelease || {
+          note: 'No escrow to release',
           reward_lamports: job.reward_lamports
         }
       });
     } else {
-      // Verification failed
+      // Verification failed - reset escrow status
       await env.DB.prepare(`
-        UPDATE jobs SET status = 'claimed' WHERE id = ?
+        UPDATE jobs SET status = 'claimed', escrow_status = 'worker_assigned', escrow_submitted_at = NULL, escrow_review_deadline = NULL WHERE id = ?
       `).bind(jobId).run();
       
       return jsonResponse({
@@ -12705,13 +12825,97 @@ async function handleSubmitJob(request: Request, jobId: string, env: Env, agent:
     }
   }
   
+  // Notify poster about submission
+  pushNotificationToAgent(job.poster_id, {
+    event_type: 'job.submitted',
+    data: {
+      job_id: jobId,
+      job_title: job.title,
+      worker_id: agent.id,
+      worker_name: agent.name,
+      review_deadline: reviewDeadline,
+    }
+  }, env).catch(() => {});
+  
   // Manual verification required
   return jsonResponse({
     message: 'Work submitted for manual review by poster.',
     job_id: jobId,
     status: 'pending_verification',
+    escrow: escrowSubmission,
+    review_window: {
+      deadline: reviewDeadline,
+      hours_remaining: 24,
+      auto_release: 'Funds will auto-release to worker if poster does not dispute within 24 hours'
+    },
     next: 'Waiting for poster to approve at POST /api/jobs/' + jobId + '/approve'
   });
+}
+
+// Helper function to attempt escrow release
+async function attemptEscrowRelease(
+  jobId: string,
+  posterWallet: string,
+  workerWallet: string,
+  env: Env
+): Promise<{
+  released: boolean;
+  signature?: string;
+  explorer_url?: string;
+  worker_payment_lamports?: number;
+  worker_payment_sol?: number;
+  platform_fee_lamports?: number;
+  error?: string;
+}> {
+  const escrowClient = createEscrowClient(env);
+  
+  if (!escrowClient.getPlatformWalletInfo().configured) {
+    return { released: false, error: 'Platform wallet not configured' };
+  }
+  
+  try {
+    const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(posterWallet));
+    
+    // Check escrow status first
+    const escrowInfo = await escrowClient.getEscrowInfo(jobId, new PublicKey(posterWallet));
+    if (!escrowInfo.exists) {
+      return { released: false, error: 'Escrow not found on-chain' };
+    }
+    
+    if (escrowInfo.escrow?.status !== EscrowStatus.Active && 
+        escrowInfo.escrow?.status !== EscrowStatus.PendingReview) {
+      return { released: false, error: `Escrow in wrong status: ${escrowInfo.statusName}` };
+    }
+    
+    const signature = await escrowClient.releaseToWorker(escrowPDA, new PublicKey(workerWallet));
+    
+    // Update job status
+    await env.DB.prepare(`
+      UPDATE jobs SET escrow_release_tx = ?, escrow_status = 'released', status = 'paid' WHERE id = ?
+    `).bind(signature, jobId).run();
+    
+    // Log escrow event
+    await env.DB.prepare(`
+      INSERT INTO escrow_events (id, job_id, event_type, transaction_signature, details)
+      VALUES (?, ?, 'released', ?, ?)
+    `).bind(generateId(), jobId, signature, JSON.stringify({ worker_wallet: workerWallet })).run();
+    
+    // Get job for reward calculation
+    const job = await env.DB.prepare('SELECT reward_lamports FROM jobs WHERE id = ?').bind(jobId).first() as any;
+    const workerPayment = Math.floor(job.reward_lamports * 0.99);
+    const platformFee = job.reward_lamports - workerPayment;
+    
+    return {
+      released: true,
+      signature,
+      explorer_url: `https://explorer.solana.com/tx/${signature}?cluster=${env.SOLANA_NETWORK || 'devnet'}`,
+      worker_payment_lamports: workerPayment,
+      worker_payment_sol: lamportsToSol(workerPayment),
+      platform_fee_lamports: platformFee
+    };
+  } catch (e: any) {
+    return { released: false, error: e.message };
+  }
 }
 
 // Run automatic verification
@@ -14106,5 +14310,150 @@ export default {
     }
     
     return serveMainSite(request, env);
+  },
+  
+  // Scheduled handler for escrow auto-release
+  // Runs every 15 minutes to check for jobs ready for auto-release
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const startTime = Date.now();
+    const cronRunId = generateId();
+    
+    let jobsChecked = 0;
+    let jobsReleased = 0;
+    const errors: string[] = [];
+    
+    try {
+      // Find jobs in pending_verification with expired review window
+      const pendingJobs = await env.DB.prepare(`
+        SELECT j.id, j.reward_lamports, j.escrow_address,
+               p.wallet_address as poster_wallet,
+               w.wallet_address as worker_wallet,
+               w.id as worker_id, w.name as worker_name
+        FROM jobs j
+        JOIN agents p ON j.poster_id = p.id
+        JOIN agents w ON j.worker_id = w.id
+        WHERE j.status = 'pending_verification'
+          AND j.escrow_address IS NOT NULL
+          AND j.escrow_review_deadline IS NOT NULL
+          AND j.escrow_review_deadline < datetime('now')
+          AND j.escrow_release_tx IS NULL
+        LIMIT 20
+      `).all() as any;
+      
+      const escrowClient = createEscrowClient(env);
+      
+      if (!escrowClient.getPlatformWalletInfo().configured) {
+        errors.push('Platform wallet not configured');
+      } else {
+        for (const job of (pendingJobs.results || [])) {
+          jobsChecked++;
+          
+          if (!job.worker_wallet) {
+            errors.push(`Job ${job.id}: worker has no wallet`);
+            continue;
+          }
+          
+          try {
+            const [escrowPDA] = await escrowClient.deriveEscrowPDA(job.id, new PublicKey(job.poster_wallet));
+            
+            // Check on-chain status
+            const escrowInfo = await escrowClient.getEscrowInfo(job.id, new PublicKey(job.poster_wallet));
+            
+            if (!escrowInfo.exists) {
+              errors.push(`Job ${job.id}: escrow not found on-chain`);
+              continue;
+            }
+            
+            // Only auto-release if in PendingReview status on-chain
+            if (escrowInfo.escrow?.status === EscrowStatus.PendingReview || 
+                escrowInfo.escrow?.status === EscrowStatus.Active) {
+              
+              // Try auto_release first (permissionless crank)
+              try {
+                const signature = await escrowClient.autoRelease(escrowPDA, new PublicKey(job.worker_wallet));
+                
+                // Update job status
+                await env.DB.prepare(`
+                  UPDATE jobs SET escrow_release_tx = ?, escrow_status = 'released', status = 'paid' WHERE id = ?
+                `).bind(signature, job.id).run();
+                
+                // Log escrow event
+                await env.DB.prepare(`
+                  INSERT INTO escrow_events (id, job_id, event_type, transaction_signature, details)
+                  VALUES (?, ?, 'auto_released', ?, ?)
+                `).bind(generateId(), job.id, signature, JSON.stringify({ 
+                  trigger: 'cron',
+                  worker_wallet: job.worker_wallet 
+                })).run();
+                
+                // Notify worker
+                pushNotificationToAgent(job.worker_id, {
+                  event_type: 'job.paid',
+                  data: {
+                    job_id: job.id,
+                    reward_lamports: job.reward_lamports,
+                    auto_released: true,
+                    signature
+                  }
+                }, env).catch(() => {});
+                
+                jobsReleased++;
+              } catch (autoReleaseError: any) {
+                // Fallback to platform release if auto_release fails
+                try {
+                  const signature = await escrowClient.releaseToWorker(escrowPDA, new PublicKey(job.worker_wallet));
+                  
+                  await env.DB.prepare(`
+                    UPDATE jobs SET escrow_release_tx = ?, escrow_status = 'released', status = 'paid' WHERE id = ?
+                  `).bind(signature, job.id).run();
+                  
+                  await env.DB.prepare(`
+                    INSERT INTO escrow_events (id, job_id, event_type, transaction_signature, details)
+                    VALUES (?, ?, 'released', ?, ?)
+                  `).bind(generateId(), job.id, signature, JSON.stringify({ 
+                    trigger: 'cron_fallback',
+                    worker_wallet: job.worker_wallet 
+                  })).run();
+                  
+                  pushNotificationToAgent(job.worker_id, {
+                    event_type: 'job.paid',
+                    data: {
+                      job_id: job.id,
+                      reward_lamports: job.reward_lamports,
+                      auto_released: true,
+                      signature
+                    }
+                  }, env).catch(() => {});
+                  
+                  jobsReleased++;
+                } catch (releaseError: any) {
+                  errors.push(`Job ${job.id}: ${releaseError.message}`);
+                }
+              }
+            } else {
+              errors.push(`Job ${job.id}: escrow in wrong status: ${escrowInfo.statusName}`);
+            }
+          } catch (e: any) {
+            errors.push(`Job ${job.id}: ${e.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      errors.push(`Fatal error: ${e.message}`);
+    }
+    
+    const durationMs = Date.now() - startTime;
+    
+    // Log cron run
+    try {
+      await env.DB.prepare(`
+        INSERT INTO escrow_cron_runs (id, jobs_checked, jobs_released, errors, duration_ms)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(cronRunId, jobsChecked, jobsReleased, JSON.stringify(errors), durationMs).run();
+    } catch (e) {
+      console.error('Failed to log cron run:', e);
+    }
+    
+    console.log(`Escrow auto-release cron: checked=${jobsChecked}, released=${jobsReleased}, errors=${errors.length}, duration=${durationMs}ms`);
   }
 };
