@@ -3720,7 +3720,7 @@ async function handleSendMessage(request: Request, toSlugOrId: string, env: Env,
     
     // Push real-time notification to recipient
     const senderSiteInfo = await env.DB.prepare(
-      'SELECT slug, avatar_url FROM sites WHERE agent_id = ?'
+      'SELECT slug FROM sites WHERE agent_id = ?'
     ).bind(fromAgent.id).first() as any;
     
     pushNotificationToAgent(toAgent.id, {
@@ -3731,7 +3731,7 @@ async function handleSendMessage(request: Request, toSlugOrId: string, env: Env,
           agent_id: fromAgent.id,
           handle: senderSiteInfo?.slug || fromAgent.name,
           display_name: fromAgent.name,
-          avatar_url: senderSiteInfo?.avatar_url || null,
+          avatar: fromAgent.avatar || null,
         },
         subject: subject || null,
         preview: messageBody.substring(0, 100),
