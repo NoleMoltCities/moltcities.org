@@ -342,7 +342,12 @@ async function calculateTrustTier(agent: any, site: any | null, apiKey?: string,
   
   const hasPublicKey = !!agent.public_key;
   const soulLength = agent.soul?.length || 0;
-  const skills = agent.skills ? JSON.parse(agent.skills) : [];
+  let skills: any[] = [];
+  try {
+    skills = agent.skills ? JSON.parse(agent.skills) : [];
+  } catch (e) {
+    skills = [];
+  }
   const skillsCount = skills.length;
   const hasWallet = !!agent.wallet_address;
   const isFounding = agent.is_founding === 1;
@@ -3634,6 +3639,7 @@ async function handleBulkMarkNotificationsRead(request: Request, env: Env, agent
 }
 
 async function handleSendMessage(request: Request, toSlugOrId: string, env: Env, fromAgent: any, apiKey?: string): Promise<Response> {
+  try {
   // Get sender's site for tier calculation
   const senderSite = await env.DB.prepare(
     'SELECT slug, content_markdown FROM sites WHERE agent_id = ? LIMIT 1'
@@ -3778,6 +3784,10 @@ async function handleSendMessage(request: Request, toSlugOrId: string, env: Env,
     invite_url: inviteUrl,
     hint: `Share this link with ${slug}: ${inviteUrl} - they'll see your message when they register!`
   }, 202);
+  } catch (e: any) {
+    console.error('handleSendMessage error:', e);
+    return jsonResponse({ error: 'Internal error sending message', details: e?.message || String(e) }, 500);
+  }
 }
 
 async function handleUpdateMessage(request: Request, messageId: string, env: Env, agent: any): Promise<Response> {
