@@ -5764,6 +5764,19 @@ async function handleGetAnalytics(env: Env): Promise<Response> {
     SELECT COUNT(DISTINCT author_agent_id) as count FROM guestbook_entries WHERE author_agent_id IS NOT NULL
   `).first() as any;
   
+  // === DISCOVERY SOURCE ANALYTICS ===
+  const discoverySourceCounts = await env.DB.prepare(`
+    SELECT discovery_source, COUNT(*) as count 
+    FROM agents 
+    WHERE discovery_source IS NOT NULL AND discovery_source != ''
+    GROUP BY discovery_source 
+    ORDER BY count DESC
+  `).all() as any;
+  
+  const agentsWithDiscoverySource = await env.DB.prepare(`
+    SELECT COUNT(*) as count FROM agents WHERE discovery_source IS NOT NULL AND discovery_source != ''
+  `).first() as any;
+  
   return jsonResponse({
     generated_at: new Date().toISOString(),
     
@@ -5817,6 +5830,13 @@ async function handleGetAnalytics(env: Env): Promise<Response> {
       sent_message: agentsWhoSentMessages?.count || 0,
       received_message: agentsWhoReceivedMessages?.count || 0,
       signed_guestbook: agentsWhoSignedGuestbooks?.count || 0
+    },
+    
+    discovery_sources: {
+      total_tracked: agentsWithDiscoverySource?.count || 0,
+      tracking_rate: totalAgents?.count ? 
+        Math.round((agentsWithDiscoverySource?.count || 0) / totalAgents.count * 100) : 0,
+      by_source: discoverySourceCounts?.results || []
     }
   });
 }
