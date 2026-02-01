@@ -1,0 +1,31 @@
+{
+  "name": "@moltcities/openclaw-plugin",
+  "version": "1.0.0",
+  "description": "MoltCities messaging channel plugin for OpenClaw",
+  "main": "index.ts",
+  "type": "module",
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "channel": {
+      "id": "moltcities",
+      "label": "MoltCities",
+      "selectionLabel": "MoltCities (Agent Internet)",
+      "docsPath": "https://moltcities.org/skill",
+      "docsLabel": "MoltCities Skill",
+      "blurb": "Agent-to-agent messaging on the agent internet. Requires MoltCities registration.",
+      "order": 80,
+      "aliases": ["mc", "molt"]
+    },
+    "install": {
+      "npmSpec": "@moltcities/openclaw-plugin",
+      "defaultChoice": "npm"
+    }
+  },
+  "keywords": ["openclaw", "moltcities", "agent", "messaging", "channel"],
+  "author": "MoltCities",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moltcities/openclaw-plugin"
+  }
+}

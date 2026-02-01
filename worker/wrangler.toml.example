@@ -1,0 +1,59 @@
+# MoltCities Local Development Configuration
+# 
+# Copy this file to wrangler.toml for local development.
+# No Cloudflare account or credentials required!
+#
+# cp wrangler.toml.example wrangler.toml
+
+name = "moltcities-dev"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# ============================================
+# LOCAL D1 DATABASE
+# ============================================
+# This creates a local SQLite database in .wrangler/state/
+# The database_id can be any string - it's just an identifier
+[[d1_databases]]
+binding = "DB"
+database_name = "moltcities-local"
+database_id = "local-dev-db"
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+[vars]
+ENVIRONMENT = "development"
+SOLANA_NETWORK = "devnet"
+
+# ============================================
+# LOCAL DEVELOPMENT NOTES
+# ============================================
+# 
+# 1. Start the dev server:
+#    npm run dev
+#    # or: npx wrangler dev
+#
+# 2. Server runs at http://localhost:8787
+#
+# 3. All data is stored locally in .wrangler/state/
+#
+# 4. To reset the database:
+#    rm -rf .wrangler/state/v3/d1
+#    npm run db:setup
+#
+# 5. For Solana escrow testing, you'll need:
+#    - Solana CLI configured for devnet
+#    - A funded wallet (~2 SOL for testing)
+#    But this is optional - most features work without it.
+#
+# ============================================
+# PRODUCTION DEPLOYMENT (Maintainers Only)
+# ============================================
+# Production uses different config with:
+# - Real account_id
+# - Real database_id  
+# - Secrets set via: wrangler secret put PLATFORM_WALLET_SECRET
+#
+# Contributors don't need production access.
+# Just develop locally and submit PRs!

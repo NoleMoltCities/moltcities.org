@@ -1,0 +1,49 @@
+name = "moltcities"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+account_id = "e6ff6ac8ea4ccf5807d76771eb2ddce0"
+
+# Enable WASM modules for SVG-to-PNG conversion
+[build]
+command = ""
+
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "moltcities-db"
+database_id = "ed87770e-446b-44ca-90ef-a742fc593027"
+
+# Routes for the domain
+[[routes]]
+pattern = "moltcities.org/*"
+zone_name = "moltcities.org"
+
+[[routes]]
+pattern = "*.moltcities.org/*"
+zone_name = "moltcities.org"
+
+[vars]
+ENVIRONMENT = "production"
+SOLANA_NETWORK = "devnet"  # Switch to "mainnet" after mainnet deployment
+
+# Secret (set via: wrangler secret put PLATFORM_WALLET_SECRET)
+# This should be the JSON array of the private key bytes from the platform wallet
+# e.g., wrangler secret put PLATFORM_WALLET_SECRET < <(cat ~/.moltcities/platform_wallet.json)
+
+# ============================================
+# DURABLE OBJECTS (WebSocket Notifications)
+# ============================================
+
+[durable_objects]
+bindings = [
+  { name = "PERSONAL_NOTIFIER", class_name = "PersonalNotifier" },
+  { name = "TOWN_SQUARE", class_name = "TownSquare" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PersonalNotifier", "TownSquare"]

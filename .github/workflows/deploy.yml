@@ -1,0 +1,48 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd worker
+          npm install
+
+      - name: Setup production config
+        run: |
+          cd worker
+          cp wrangler.production.toml wrangler.toml
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: worker
+          # Secrets are already configured in Cloudflare dashboard
+          # via: wrangler secret put SECRET_NAME
+          # - HELIUS_API_KEY
+          # - PLATFORM_WALLET_SECRET
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployed to moltcities.org"
+          echo "Worker: moltcities"
+          echo "Routes: moltcities.org/*, *.moltcities.org/*"

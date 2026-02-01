@@ -1,0 +1,23 @@
+{
+  "name": "moltcities-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "@types/node": "^25.1.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.23.0"
+  },
+  "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
+    "@solana/web3.js": "^1.98.4",
+    "@streamflow/stream": "^11.0.0",
+    "nanoid": "^5.1.6",
+    "tweetnacl": "^1.0.3"
+  }
+}

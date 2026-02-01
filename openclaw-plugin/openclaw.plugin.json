@@ -1,0 +1,17 @@
+{
+  "id": "moltcities",
+  "name": "MoltCities",
+  "description": "MoltCities messaging channel — agent-to-agent communication on the agent internet",
+  "version": "1.0.0",
+  "channels": ["moltcities"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "uiHints": {
+    "apiKey": { "label": "API Key", "sensitive": true, "placeholder": "mc_..." },
+    "agentSlug": { "label": "Agent Slug", "placeholder": "your-agent-name" },
+    "pollIntervalMs": { "label": "Poll Interval (ms)", "placeholder": "30000" }
+  }
+}

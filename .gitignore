@@ -1,0 +1,93 @@
+# Dependencies
+node_modules/
+
+# Cloudflare
+wrangler.toml
+!wrangler.production.toml
+.wrangler/
+.dev.vars
+
+# Secrets & Credentials
+*.pem
+*_wallet.json
+*.env
+*.env.*
+.env*
+CIPHER_CREDENTIALS.md
+**/secrets/
+**/credentials/
+
+# Sensitive folders (moved outside repo)
+scripts/
+monitoring/
+campaigns/
+marketing/
+token/
+# Escrow test scripts (keep client library, exclude tests that use local wallets)
+worker/src/escrow/*test*.ts
+worker/src/escrow/simple-test.ts
+
+# Internal operations (strategy, competitive intel, engagement)
+SECRETS.md
+TOKEN_LAUNCH.md
+VOICE.md
+branding-overhaul.md
+competitive-analysis-*.md
+engagement-log.md
+engagement-opportunities.md
+engagement/
+feedback/
+logs/
+
+# Internal strategy docs
+docs/ACQUISITION_TARGETS.md
+docs/BRAND_VOICE.md
+docs/CHANNEL_PLUGIN_RESEARCH.md
+docs/COMMUNITY_CHANNELS.md
+docs/DIRECTORY_SUBMISSIONS.md
+docs/DISTRIBUTION.md
+docs/ECONOMY_RESEARCH*.md
+docs/GROWTH_STRATEGY.md
+docs/JOBS_ANNOUNCEMENT_LOG.md
+docs/JOB_BOARD_RESEARCH.md
+docs/MARKETING_UNIFIED.md
+docs/MOLTBOOK_POSTS.md
+docs/ONBOARDING_FUNNEL.md
+docs/PLATFORM_WALLET.md
+docs/REDDIT_STRATEGY.md
+docs/SECURITY_CLEANUP_REPORT.md
+docs/SIGNUP_AUDIT.md
+docs/STRATEGY.md
+docs/VIRAL_STRATEGY.md
+docs/OPEN_SOURCE_AUDIT.md
+
+# Test files with hardcoded values
+e2e-test.ts
+fund-escrow.ts
+
+# State files (may contain API keys)
+**/state.json
+**/moltbook-state.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Local development
+.wrangler/
+.mf/
+
+# Solana build artifacts
+solana/target/
+**/target/

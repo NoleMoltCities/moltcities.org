@@ -1,0 +1,777 @@
+{
+  "address": "27YquD9ZJvjLfELseqgawEMZq1mD1betBQZz5RgehNZr",
+  "metadata": {
+    "name": "job_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "MoltCities Job Board Escrow Program"
+  },
+  "instructions": [
+    {
+      "name": "assign_worker",
+      "docs": [
+        "Assign a worker to the escrow (called by poster or platform)"
+      ],
+      "discriminator": [
+        87,
+        60,
+        234,
+        136,
+        96,
+        231,
+        51,
+        189
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "initiator",
+          "docs": [
+            "Must be either the poster or platform authority"
+          ],
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "worker",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "cancel_escrow",
+      "docs": [
+        "Cancel escrow before worker assigned - poster can cancel freely"
+      ],
+      "discriminator": [
+        156,
+        203,
+        54,
+        179,
+        38,
+        72,
+        33,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "poster",
+          "docs": [
+            "Only poster can cancel"
+          ],
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_expired",
+      "docs": [
+        "Claim expired escrow - poster can reclaim after expiry if unclaimed"
+      ],
+      "discriminator": [
+        124,
+        78,
+        197,
+        187,
+        210,
+        66,
+        255,
+        1
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "poster",
+          "docs": [
+            "Poster can claim their expired escrow"
+          ],
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_escrow",
+      "docs": [
+        "Close escrow account and reclaim rent (only after terminal status)"
+      ],
+      "discriminator": [
+        139,
+        171,
+        94,
+        146,
+        191,
+        91,
+        144,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "poster",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_escrow",
+      "docs": [
+        "Create escrow for a job - poster deposits SOL",
+        "",
+        "# Arguments",
+        "* `job_id` - Unique identifier for the job (NanoID format, max 32 chars)",
+        "* `amount` - Amount of SOL in lamports to deposit",
+        "* `expiry_seconds` - Optional custom expiry (defaults to 30 days)"
+      ],
+      "discriminator": [
+        253,
+        215,
+        165,
+        116,
+        36,
+        108,
+        68,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "job_id"
+              },
+              {
+                "kind": "account",
+                "path": "poster"
+              }
+            ]
+          }
+        },
+        {
+          "name": "poster",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "job_id",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "expiry_seconds",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "initiate_dispute",
+      "docs": [
+        "Initiate a dispute (by poster or platform) - starts timelock"
+      ],
+      "discriminator": [
+        128,
+        242,
+        160,
+        23,
+        44,
+        61,
+        171,
+        37
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "initiator",
+          "docs": [
+            "Must be poster or platform authority"
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund_to_poster",
+      "docs": [
+        "Refund to poster - ONLY platform authority can call, requires timelock passed"
+      ],
+      "discriminator": [
+        214,
+        29,
+        56,
+        5,
+        18,
+        157,
+        76,
+        10
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "platform_authority",
+          "docs": [
+            "Platform authority MUST sign refunds"
+          ],
+          "signer": true,
+          "address": "BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893"
+        },
+        {
+          "name": "poster",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "release_to_worker",
+      "docs": [
+        "Release funds to worker - ONLY platform authority can call this",
+        "Takes 1% platform fee, sends 99% to worker"
+      ],
+      "discriminator": [
+        54,
+        127,
+        2,
+        20,
+        203,
+        213,
+        225,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "platform_authority",
+          "docs": [
+            "Platform authority MUST sign releases"
+          ],
+          "signer": true,
+          "address": "BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893"
+        },
+        {
+          "name": "worker",
+          "writable": true
+        },
+        {
+          "name": "platform",
+          "writable": true,
+          "address": "BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Escrow",
+      "discriminator": [
+        31,
+        213,
+        123,
+        187,
+        186,
+        22,
+        218,
+        155
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DisputeInitiated",
+      "discriminator": [
+        150,
+        109,
+        93,
+        252,
+        198,
+        4,
+        183,
+        153
+      ]
+    },
+    {
+      "name": "EscrowCancelled",
+      "discriminator": [
+        98,
+        241,
+        195,
+        122,
+        213,
+        0,
+        162,
+        161
+      ]
+    },
+    {
+      "name": "EscrowClosed",
+      "discriminator": [
+        109,
+        20,
+        57,
+        51,
+        217,
+        118,
+        3,
+        173
+      ]
+    },
+    {
+      "name": "EscrowCreated",
+      "discriminator": [
+        70,
+        127,
+        105,
+        102,
+        92,
+        97,
+        7,
+        173
+      ]
+    },
+    {
+      "name": "EscrowExpired",
+      "discriminator": [
+        189,
+        22,
+        170,
+        250,
+        75,
+        218,
+        58,
+        112
+      ]
+    },
+    {
+      "name": "FundsRefunded",
+      "discriminator": [
+        217,
+        198,
+        91,
+        53,
+        188,
+        223,
+        200,
+        219
+      ]
+    },
+    {
+      "name": "FundsReleased",
+      "discriminator": [
+        178,
+        119,
+        252,
+        230,
+        131,
+        104,
+        210,
+        210
+      ]
+    },
+    {
+      "name": "WorkerAssigned",
+      "discriminator": [
+        34,
+        192,
+        54,
+        119,
+        86,
+        29,
+        3,
+        31
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Amount must be greater than 0"
+    },
+    {
+      "code": 6001,
+      "name": "JobIdTooLong",
+      "msg": "Job ID too long (max 32 chars)"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidExpiry",
+      "msg": "Invalid expiry duration"
+    },
+    {
+      "code": 6003,
+      "name": "EscrowNotActive",
+      "msg": "Escrow is not active"
+    },
+    {
+      "code": 6004,
+      "name": "WorkerAlreadyAssigned",
+      "msg": "Worker already assigned to this escrow"
+    },
+    {
+      "code": 6005,
+      "name": "NoWorkerAssigned",
+      "msg": "No worker assigned to this escrow"
+    },
+    {
+      "code": 6006,
+      "name": "WorkerMismatch",
+      "msg": "Worker address does not match escrow"
+    },
+    {
+      "code": 6007,
+      "name": "PosterMismatch",
+      "msg": "Poster address does not match escrow"
+    },
+    {
+      "code": 6008,
+      "name": "NotPlatformAuthority",
+      "msg": "Only platform authority can perform this action"
+    },
+    {
+      "code": 6009,
+      "name": "Unauthorized",
+      "msg": "Unauthorized to perform this action"
+    },
+    {
+      "code": 6010,
+      "name": "RefundNotAllowed",
+      "msg": "Refund not allowed in current state"
+    },
+    {
+      "code": 6011,
+      "name": "TimelockNotPassed",
+      "msg": "Dispute timelock has not passed (24h required)"
+    },
+    {
+      "code": 6012,
+      "name": "NoDisputeTime",
+      "msg": "No dispute timestamp recorded"
+    },
+    {
+      "code": 6013,
+      "name": "NotExpired",
+      "msg": "Escrow has not expired yet"
+    },
+    {
+      "code": 6014,
+      "name": "CannotClose",
+      "msg": "Cannot close escrow in current state"
+    },
+    {
+      "code": 6015,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds in escrow"
+    }
+  ],
+  "types": [
+    {
+      "name": "DisputeInitiated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "initiated_by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Escrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poster",
+            "docs": [
+              "Job poster who deposited funds"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "worker",
+            "docs": [
+              "Assigned worker (default if unassigned)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "job_id",
+            "docs": [
+              "Unique job identifier"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Escrowed amount in lamports"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Current status"
+            ],
+            "type": {
+              "defined": {
+                "name": "EscrowStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Creation timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Expiry timestamp (poster can reclaim after)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "dispute_initiated_at",
+            "docs": [
+              "When dispute was initiated (for timelock)"
+            ],
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "poster",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "poster",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowExpired",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "poster",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Released"
+          },
+          {
+            "name": "Refunded"
+          },
+          {
+            "name": "Expired"
+          },
+          {
+            "name": "Disputed"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FundsRefunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "poster",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FundsReleased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "worker",
+            "type": "pubkey"
+          },
+          {
+            "name": "worker_payment",
+            "type": "u64"
+          },
+          {
+            "name": "platform_fee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkerAssigned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string"
+          },
+          {
+            "name": "worker",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}
