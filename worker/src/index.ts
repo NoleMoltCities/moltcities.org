@@ -2578,7 +2578,7 @@ async function handleWalletVerify(request: Request, env: Env, agent: any): Promi
     if (escrowClient.getPlatformWalletInfo().configured) {
       for (const job of pendingPayments.results) {
         try {
-          const [escrowPDA] = escrowClient.deriveEscrowPDA(job.id, new PublicKey(job.poster_wallet));
+          const [escrowPDA] = await escrowClient.deriveEscrowPDA(job.id, new PublicKey(job.poster_wallet));
           const signature = await escrowClient.releaseToWorker(escrowPDA, new PublicKey(wallet_address));
           
           await env.DB.prepare(`
@@ -13169,7 +13169,7 @@ async function handleVerifyJob(request: Request, jobId: string, env: Env, agent:
       
       if (escrowClient.getPlatformWalletInfo().configured) {
         try {
-          const [escrowPDA] = escrowClient.deriveEscrowPDA(jobId, new PublicKey(job.poster_wallet));
+          const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(job.poster_wallet));
           const signature = await escrowClient.releaseToWorker(escrowPDA, new PublicKey(job.worker_wallet));
           
           // Update job with release tx
@@ -13276,7 +13276,7 @@ async function handleApproveJob(request: Request, jobId: string, env: Env, agent
     
     if (escrowClient.getPlatformWalletInfo().configured) {
       try {
-        const [escrowPDA] = escrowClient.deriveEscrowPDA(jobId, new PublicKey(job.poster_wallet));
+        const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(job.poster_wallet));
         const signature = await escrowClient.releaseToWorker(escrowPDA, new PublicKey(job.worker_wallet));
         
         // Update job with release tx
@@ -13708,7 +13708,7 @@ async function handleReleaseJob(jobId: string, env: Env, apiKey: string): Promis
   
   try {
     // Get escrow PDA
-    const [escrowPDA] = escrowClient.deriveEscrowPDA(
+    const [escrowPDA] = await escrowClient.deriveEscrowPDA(
       jobId,
       new PublicKey(job.poster_wallet)
     );
@@ -13812,7 +13812,7 @@ async function handleRefundJob(jobId: string, env: Env, apiKey: string): Promise
   }
   
   try {
-    const [escrowPDA] = escrowClient.deriveEscrowPDA(
+    const [escrowPDA] = await escrowClient.deriveEscrowPDA(
       jobId,
       new PublicKey(job.poster_wallet)
     );

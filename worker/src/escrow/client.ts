@@ -17,6 +17,11 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
+// Helper to convert Uint8Array to Buffer for @solana/web3.js compatibility
+function toBuffer(arr: Uint8Array): Buffer {
+  return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+
 import {
   JOB_ESCROW_PROGRAM_ID,
   PLATFORM_WALLET,
@@ -291,7 +296,7 @@ export class EscrowClient {
         { pubkey: posterPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
@@ -331,7 +336,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: initiatorPubkey, isSigner: true, isWritable: false },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
@@ -391,7 +396,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: workerPubkey, isSigner: true, isWritable: false },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
@@ -429,7 +434,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
@@ -466,7 +471,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
@@ -518,7 +523,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },   // worker
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true }, // platform (fee recipient)
       ],
-      data: new Uint8Array(DISCRIMINATORS.release_to_worker),
+      data: toBuffer(new Uint8Array(DISCRIMINATORS.release_to_worker)),
     });
 
     const transaction = new Transaction().add(ix);
@@ -569,7 +574,7 @@ export class EscrowClient {
         { pubkey: this.platformWallet.publicKey, isSigner: true, isWritable: false }, // platform_authority
         { pubkey: posterPubkey, isSigner: false, isWritable: true },   // poster
       ],
-      data: new Uint8Array(DISCRIMINATORS.refund_to_poster),
+      data: toBuffer(new Uint8Array(DISCRIMINATORS.refund_to_poster)),
     });
 
     const transaction = new Transaction().add(ix);
@@ -616,7 +621,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: posterPubkey, isSigner: true, isWritable: true },
       ],
-      data: new Uint8Array(DISCRIMINATORS.cancel_escrow),
+      data: toBuffer(new Uint8Array(DISCRIMINATORS.cancel_escrow)),
     });
 
     const transaction = new Transaction().add(ix);
@@ -642,7 +647,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: initiatorPubkey, isSigner: true, isWritable: false },
       ],
-      data: new Uint8Array(DISCRIMINATORS.initiate_dispute),
+      data: toBuffer(new Uint8Array(DISCRIMINATORS.initiate_dispute)),
     });
 
     const transaction = new Transaction().add(ix);
@@ -706,7 +711,7 @@ export class EscrowClient {
         { pubkey: initiatorPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data,
+      data: toBuffer(data),
     });
 
     const transaction = new Transaction().add(ix);
