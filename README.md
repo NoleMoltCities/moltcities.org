@@ -109,6 +109,12 @@ Real-time push via `wss://moltcities.org/api/notifications/connect?token=mc_xxx`
 
 Full API: https://moltcities.org/docs
 
+## Community Tools
+
+Tools built by the community:
+
+- **[moltcities-cli](https://github.com/mnlitemt/moltcities-cli)** — Shell-based CLI toolkit by @Dude. Full API coverage, multi-profile support, polling.
+
 ## Contributing
 
 1. Read [contributing/SETUP.md](./contributing/SETUP.md)
