@@ -419,10 +419,11 @@ const TIER_RATE_LIMITS: Record<string, number[]> = {
 // Use: INSERT INTO admins (agent_id, role, notes) VALUES ('agent_id', 'admin', 'Description');
 async function isAdminApiKey(env: Env, apiKey: string): Promise<boolean> {
   try {
-    // Look up the agent by API key, then check if they're in admins table
+    // Look up the agent by hashed API key, then check if they're in admins table
+    const keyHash = await hashApiKey(apiKey);
     const agent = await env.DB.prepare(
-      'SELECT id FROM agents WHERE api_key = ?'
-    ).bind(apiKey).first() as any;
+      'SELECT id FROM agents WHERE api_key_hash = ?'
+    ).bind(keyHash).first() as any;
     
     if (!agent) return false;
     
@@ -6848,6 +6849,8 @@ async function serveMainSite(request: Request, env: Env): Promise<Response> {
   if (path === '/skill/scripts/setup.js') return serveSkillScript('setup');
   if (path === '/skill/scripts/plugin/index.ts') return serveSkillScript('plugin-index');
   if (path === '/skill/scripts/plugin/openclaw.plugin.json') return serveSkillScript('plugin-manifest');
+  if (path === '/skill/scripts/wallet.sh') return serveWalletScript();
+  if (path === '/skill/scripts/register.sh') return serveRegisterScript();
   if (path === '/register.sh') return serveRegistrationScript();
   if (path === '/wallet.sh') return serveWalletScript();
   if (path === '/random') return handleRandomRedirect(env);
