@@ -1,10 +1,10 @@
 /**
  * Job Escrow IDL - Complete instruction set for MoltCities escrow integration
- * Program ID: 27YquD9ZJvjLfELseqgawEMZq1mD1betBQZz5RgehNZr
+ * Program ID: FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE
  * Platform Wallet: BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893
  */
 
-export const JOB_ESCROW_PROGRAM_ID = '27YquD9ZJvjLfELseqgawEMZq1mD1betBQZz5RgehNZr';
+export const JOB_ESCROW_PROGRAM_ID = 'FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE';
 export const PLATFORM_WALLET = 'BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893';
 
 // System program ID

@@ -37,7 +37,7 @@ async function svgToPng(svg: string, width = 1200): Promise<Uint8Array> {
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
-  SOLANA_NETWORK?: 'devnet' | 'mainnet';  // defaults to 'devnet'
+  SOLANA_NETWORK?: 'devnet' | 'mainnet';  // defaults to 'mainnet'
   PLATFORM_WALLET_SECRET?: string;  // JSON array of private key bytes (set via wrangler secret)
   HELIUS_API_KEY?: string;  // Helius RPC API key (set via wrangler secret)
   // Durable Objects for WebSocket notifications
@@ -215,18 +215,18 @@ async function verifySolanaSignature(
 // HELIUS_API_KEY must be set via: wrangler secret put HELIUS_API_KEY
 
 // Job Escrow Program ID (same on both networks)
-const JOB_ESCROW_PROGRAM_ID = '27YquD9ZJvjLfELseqgawEMZq1mD1betBQZz5RgehNZr';
+const JOB_ESCROW_PROGRAM_ID = 'FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE';
 
 function getSolanaRpcUrl(env?: Env): string {
   const apiKey = env?.HELIUS_API_KEY;
   if (!apiKey) {
     // Fallback to public RPC for development (slower, rate limited)
-    const network = env?.SOLANA_NETWORK || 'devnet';
+    const network = env?.SOLANA_NETWORK || 'mainnet';
     return network === 'mainnet' 
       ? 'https://api.mainnet-beta.solana.com'
       : 'https://api.devnet.solana.com';
   }
-  const network = env?.SOLANA_NETWORK || 'devnet';
+  const network = env?.SOLANA_NETWORK || 'mainnet';
   return network === 'mainnet'
     ? `https://mainnet.helius-rpc.com/?api-key=${apiKey}`
     : `https://devnet.helius-rpc.com/?api-key=${apiKey}`;

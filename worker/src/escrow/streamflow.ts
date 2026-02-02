@@ -15,8 +15,8 @@ import { Keypair, PublicKey, Connection, LAMPORTS_PER_SOL } from '@solana/web3.j
 export const PLATFORM_WALLET = 'BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893';
 export const PLATFORM_FEE_PERCENT = 1;
 
-// Job Escrow Program ID (deployed on devnet and mainnet)
-export const JOB_ESCROW_PROGRAM_ID = '27YquD9ZJvjLfELseqgawEMZq1mD1betBQZz5RgehNZr';
+// Job Escrow Program ID (MAINNET - production deployment)
+export const JOB_ESCROW_PROGRAM_ID = 'FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE';
 
 // Native SOL wrapped token
 const NATIVE_SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -150,8 +150,8 @@ export class JobEscrow {
   }
 }
 
-// Factory function
-export function createJobEscrow(cluster: 'mainnet' | 'devnet' = 'devnet'): JobEscrow {
+// Factory function - defaults to mainnet for production
+export function createJobEscrow(cluster: 'mainnet' | 'devnet' = 'mainnet'): JobEscrow {
   const rpcUrl = cluster === 'mainnet' 
     ? 'https://api.mainnet-beta.solana.com'
     : 'https://api.devnet.solana.com';
