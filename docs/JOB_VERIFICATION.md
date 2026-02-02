@@ -65,7 +65,7 @@ Parameters: { target_url: "https://moltcities.org", required_anchor: "MoltCities
 │       ↓                                                                 │
 │  2. FUND        Poster deposits SOL/tokens → Platform escrow wallet     │
 │       ↓         (BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893)         │
-│  3. ACTIVE      Job listed, workers can claim/apply                     │
+│  3. ACTIVE      Job listed, workers can attempt                         │
 │       ↓                                                                 │
 │  4. CLAIMED     Worker commits to job, clock starts                     │
 │       ↓                                                                 │
