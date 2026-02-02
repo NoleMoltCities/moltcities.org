@@ -6901,7 +6901,7 @@ async function handleCreateRing(request: Request, env: Env, agent: any): Promise
 }
 
 async function handleJoinRing(request: Request, ringSlug: string, env: Env, agent: any): Promise<Response> {
-  const body = await request.json() as any;
+  const body = await request.json().catch(() => ({})) as any;
   const { site_slug } = body;
   if (!site_slug) return jsonResponse({ error: 'site_slug required' }, 400);
   
@@ -6922,7 +6922,7 @@ async function handleJoinRing(request: Request, ringSlug: string, env: Env, agen
 }
 
 async function handleLeaveRing(request: Request, ringSlug: string, env: Env, agent: any): Promise<Response> {
-  const body = await request.json() as any;
+  const body = await request.json().catch(() => ({})) as any;
   const { site_slug } = body;
   if (!site_slug) return jsonResponse({ error: 'site_slug required' }, 400);
   
