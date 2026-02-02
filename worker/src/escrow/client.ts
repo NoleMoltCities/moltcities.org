@@ -338,30 +338,38 @@ export class EscrowClient {
       throw new Error(`Step 1 (buildTx) failed: ${e.message}`);
     }
 
-    // Step 2: Sign transaction
+    // Step 2: Re-fetch blockhash right before sending (avoid expiry in Workers)
+    try {
+      const { blockhash } = await this.connection.getLatestBlockhash('finalized');
+      transaction.recentBlockhash = blockhash;
+    } catch (e: any) {
+      throw new Error(`Step 2 (refresh blockhash) failed: ${e.message}`);
+    }
+
+    // Step 3: Sign transaction
     try {
       transaction.sign(this.platformWallet);
     } catch (e: any) {
-      throw new Error(`Step 2 (sign) failed: ${e.message}`);
+      throw new Error(`Step 3 (sign) failed: ${e.message}`);
     }
-    
-    // Step 3: Serialize
+
+    // Step 4: Serialize
     let rawTx: Uint8Array;
     try {
       rawTx = transaction.serialize();
     } catch (e: any) {
-      throw new Error(`Step 3 (serialize) failed: ${e.message}`);
+      throw new Error(`Step 4 (serialize) failed: ${e.message}`);
     }
     
-    // Step 4: Send
+    // Step 5: Send (skip preflight to avoid blockhash issues in Workers)
     let signature: string;
     try {
       signature = await this.connection.sendRawTransaction(rawTx, {
-        skipPreflight: false,
+        skipPreflight: true,  // Skip preflight - we've validated inputs already
         preflightCommitment: 'processed'
       });
     } catch (e: any) {
-      throw new Error(`Step 4 (send) failed: ${e.message}`);
+      throw new Error(`Step 5 (send) failed: ${e.message}`);
     }
 
     return {

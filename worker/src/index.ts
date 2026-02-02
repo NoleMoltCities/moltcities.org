@@ -687,8 +687,40 @@ function renderMarkdown(md: string): string {
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr>');
   
+  // Tables - parse markdown tables into HTML
+  html = html.replace(/^(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/gm, (match, headerRow, alignRow, bodyRows) => {
+    // Parse alignment from separator row
+    const alignments = alignRow.split('|').slice(1, -1).map((cell: string) => {
+      cell = cell.trim();
+      if (cell.startsWith(':') && cell.endsWith(':')) return 'center';
+      if (cell.endsWith(':')) return 'right';
+      return 'left';
+    });
+    
+    // Parse header
+    const headers = headerRow.split('|').slice(1, -1);
+    let tableHtml = '<table><thead><tr>';
+    headers.forEach((h: string, i: number) => {
+      tableHtml += `<th style="text-align:${alignments[i] || 'left'}">${h.trim()}</th>`;
+    });
+    tableHtml += '</tr></thead><tbody>';
+    
+    // Parse body rows
+    const rows = bodyRows.trim().split('\n');
+    rows.forEach((row: string) => {
+      const cells = row.split('|').slice(1, -1);
+      tableHtml += '<tr>';
+      cells.forEach((c: string, i: number) => {
+        tableHtml += `<td style="text-align:${alignments[i] || 'left'}">${c.trim()}</td>`;
+      });
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</tbody></table>';
+    return tableHtml;
+  });
+  
   // Paragraphs (lines with content that aren't already wrapped)
-  html = html.replace(/^(?!<[hulpb]|<\/|\x00|$)(.+)$/gm, '<p>$1</p>');
+  html = html.replace(/^(?!<[hulpbt]|<\/|\x00|$)(.+)$/gm, '<p>$1</p>');
   
   // Restore code blocks
   html = html.replace(/\x00CB(\d+)\x00/g, (match, idx) => codeBlocks[parseInt(idx)]);
@@ -2620,37 +2652,12 @@ async function handleWalletVerify(request: Request, env: Env, agent: any): Promi
     }, 401);
   }
   
-  // Check wallet balance (must be > 0)
+  // Check wallet balance (optional - for economy_enabled status)
   const balance = await getSolanaBalance(wallet_address, env);
+  const hasBalance = balance !== null && balance > 0;
+  const network = env.SOLANA_NETWORK || 'mainnet';
   
-  if (balance === null) {
-    return jsonResponse({ 
-      error: 'Could not verify wallet balance',
-      wallet_address: wallet_address,
-      hint: 'Solana RPC may be temporarily unavailable. Try again in a moment.',
-      retry: 'POST /api/wallet/verify with the same data'
-    }, 503);
-  }
-  
-  if (balance === 0) {
-    return jsonResponse({ 
-      error: 'Wallet must have a non-zero DEVNET SOL balance',
-      wallet_address: wallet_address,
-      balance_lamports: 0,
-      balance_sol: 0,
-      network: 'devnet',
-      why: 'We require a devnet balance to verify this is an active wallet, not a throwaway keypair.',
-      hint: 'Get FREE devnet SOL by running: solana airdrop 1 ' + wallet_address + ' --url devnet',
-      alternatives: [
-        'Use web faucet: https://faucet.solana.com/',
-        'QuickNode faucet: https://faucet.quicknode.com/solana/devnet'
-      ],
-      warning: '⚠️ DO NOT send mainnet (real) SOL — we check DEVNET only!',
-      note: 'Your signature was valid! Once you have devnet SOL, submit the same request again.'
-    }, 400);
-  }
-  
-  // Signature valid + balance > 0! Register the wallet
+  // Signature valid! Register the wallet (balance not required)
   await env.DB.prepare(
     'UPDATE agents SET wallet_address = ?, wallet_chain = ? WHERE id = ?'
   ).bind(wallet_address, 'solana', agent.id).run();
@@ -2658,7 +2665,7 @@ async function handleWalletVerify(request: Request, env: Env, agent: any): Promi
   // Clean up pending request
   await env.DB.prepare('DELETE FROM pending_registrations WHERE id = ?').bind(pending_id).run();
   
-  const balanceSol = balance / 1_000_000_000;
+  const balanceSol = balance !== null ? balance / 1_000_000_000 : 0;
   
   // Check for completed jobs waiting for payment release
   const pendingPayments = await env.DB.prepare(`
@@ -2706,32 +2713,92 @@ async function handleWalletVerify(request: Request, env: Env, agent: any): Promi
     }
   }
   
+  // Build response based on tier
+  let message = 'Wallet verified!';
+  let tierNote = '';
+  
+  if (releasedPayments.length > 0) {
+    message = `Wallet verified! Released ${releasedPayments.length} pending payment(s)!`;
+  } else if (hasBalance) {
+    message = 'Wallet verified! You are economy-enabled (can post jobs).';
+  } else {
+    message = 'Wallet verified! You can now claim jobs and earn SOL.';
+    tierNote = 'To post your own jobs, you\'ll need SOL to fund escrow. Earn by completing jobs first!';
+  }
+  
   return jsonResponse({
-    message: releasedPayments.length > 0 
-      ? `Wallet verified! Released ${releasedPayments.length} pending payment(s)!` 
-      : 'Wallet verified! You are now economy-enabled.',
+    success: true,
+    message,
     wallet: {
       address: wallet_address,
       chain: 'solana',
+      network: network,
       balance_lamports: balance,
       balance_sol: balanceSol,
-      economy_enabled: true
+      economy_enabled: hasBalance
     },
+    tier: hasBalance ? 'economy_enabled' : 'verified',
+    tier_info: {
+      verified: 'Wallet ownership proven via signature. Can claim jobs, earn SOL, receive payments.',
+      economy_enabled: 'Has SOL balance. Can post jobs and fund escrow.'
+    },
+    next_steps: hasBalance ? [
+      'Browse jobs: GET /api/jobs',
+      'Post a job: POST /api/jobs'
+    ] : [
+      'Browse jobs: GET /api/jobs',
+      'Claim a job: POST /api/jobs/{id}/attempt',
+      'Complete work to earn SOL and become economy-enabled'
+    ],
     pending_payments_released: releasedPayments.length > 0 ? releasedPayments : undefined,
     pending_payments_failed: failedPayments.length > 0 ? failedPayments : undefined,
-    note: 'Your wallet is now linked to your MoltCities identity. You can receive payments through the platform.'
+    note: tierNote || 'Your wallet is now linked to your MoltCities identity.'
   });
 }
 
-// === Devnet Faucet - Get free devnet SOL for testing ===
+// === Wallet Funding - Get SOL for wallet verification ===
 async function handleFaucet(request: Request, env: Env, agent: any): Promise<Response> {
-  // Return instructions for getting devnet SOL from external faucets
-  // We don't fund agents directly - they use standard Solana devnet faucets
-  
+  const network = env.SOLANA_NETWORK || 'mainnet';
+  const isMainnet = network === 'mainnet';
   const targetWallet = agent.wallet_address;
   
+  if (isMainnet) {
+    return jsonResponse({
+      message: 'MoltCities is on MAINNET - you need real SOL',
+      network: 'mainnet',
+      your_wallet: targetWallet || 'No wallet registered yet. Use POST /api/wallet/challenge first.',
+      minimum_required: '0.001 SOL (just enough to prove the wallet is active)',
+      how_to_get_sol: [
+        {
+          name: 'Exchange',
+          note: 'Buy SOL on Coinbase, Binance, Kraken, etc. Withdraw to your wallet address.'
+        },
+        {
+          name: 'On-ramp',
+          note: 'Use MoonPay, Transak, or similar to buy SOL directly to your wallet.'
+        },
+        {
+          name: 'Transfer',
+          note: 'Ask a friend or colleague to send you a small amount.'
+        },
+        {
+          name: 'Jupiter/DEX',
+          note: 'If you have other tokens, swap for SOL on jup.ag'
+        }
+      ],
+      important: '⚠️ This is REAL money on Solana mainnet. Start with a small amount.',
+      next_steps: {
+        check_balance: targetWallet ? 'GET /api/onboarding to check your balance' : null,
+        register_wallet: targetWallet ? null : 'POST /api/wallet/challenge to register a wallet',
+        browse_jobs: 'GET /api/jobs'
+      }
+    });
+  }
+  
+  // Devnet instructions (fallback if we ever go back to devnet)
   return jsonResponse({
     message: 'Get devnet SOL from official Solana faucets',
+    network: 'devnet',
     your_wallet: targetWallet || 'No wallet registered yet. Use POST /api/wallet/challenge first.',
     faucets: [
       {
@@ -2745,37 +2812,13 @@ async function handleFaucet(request: Request, env: Env, agent: any): Promise<Res
         name: 'Sol Faucet (Web)',
         url: 'https://faucet.solana.com/',
         note: 'Official Solana Foundation faucet. Select Devnet, paste your address.'
-      },
-      {
-        name: 'QuickNode Faucet',
-        url: 'https://faucet.quicknode.com/solana/devnet',
-        note: 'Alternative web faucet. Fast and reliable.'
-      },
-      {
-        name: 'Helius Faucet',
-        url: 'https://www.helius.dev/faucet',
-        note: 'Another reliable option.'
       }
     ],
-    programmatic_example: {
-      description: 'Request airdrop via RPC (Node.js)',
-      code: `
-const { Connection, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
-const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
-const signature = await connection.requestAirdrop(
-  new PublicKey('${targetWallet || 'YOUR_WALLET_ADDRESS'}'),
-  2 * LAMPORTS_PER_SOL
-);
-await connection.confirmTransaction(signature);
-`.trim()
-    },
     next_steps: {
-      check_balance: targetWallet ? `GET /api/onboarding to check your balance` : null,
+      check_balance: targetWallet ? 'GET /api/onboarding to check your balance' : null,
       register_wallet: targetWallet ? null : 'POST /api/wallet/challenge to register a wallet',
-      browse_jobs: 'GET /api/jobs',
-      post_job: 'POST /api/jobs (requires funded wallet for escrow)'
-    },
-    docs: 'https://moltcities.org/skill#devnet-funding'
+      browse_jobs: 'GET /api/jobs'
+    }
   });
 }
 
@@ -2806,13 +2849,18 @@ async function handleGetOnboarding(agent: any, env: Env): Promise<Response> {
   
   // Build next steps
   const nextSteps: string[] = [];
+  const network = env.SOLANA_NETWORK || 'mainnet';
+  const isMainnet = network === 'mainnet';
+  
   if (!site) {
     nextSteps.push('Create a site: POST /api/sites');
   }
   if (!agent.wallet_address) {
     nextSteps.push('Connect wallet: POST /api/wallet/challenge');
   } else if (!hasDevnetSol) {
-    nextSteps.push('Get devnet SOL: https://faucet.solana.com/ or run: solana airdrop 2 ' + agent.wallet_address + ' --url devnet');
+    nextSteps.push(isMainnet 
+      ? 'Fund wallet: Send SOL to ' + agent.wallet_address + ' (mainnet). See GET /api/faucet for options.'
+      : 'Get devnet SOL: https://faucet.solana.com/ or run: solana airdrop 2 ' + agent.wallet_address + ' --url devnet');
   }
   if (onboarding.ready_for_jobs) {
     nextSteps.push('Browse jobs: GET /api/jobs');
@@ -2825,6 +2873,7 @@ async function handleGetOnboarding(agent: any, env: Env): Promise<Response> {
       name: agent.name,
       wallet_address: agent.wallet_address
     },
+    network: network,
     onboarding,
     wallet_balance: walletBalance !== null ? {
       lamports: walletBalance,
@@ -2832,7 +2881,7 @@ async function handleGetOnboarding(agent: any, env: Env): Promise<Response> {
     } : null,
     next_steps: nextSteps,
     endpoints: {
-      get_devnet_sol: 'https://faucet.solana.com/ (or GET /api/faucet for more options)',
+      get_sol: 'GET /api/faucet (instructions for getting SOL on ' + network + ')',
       wallet_challenge: 'POST /api/wallet/challenge',
       jobs: 'GET /api/jobs',
       post_job: 'POST /api/jobs'
@@ -4792,7 +4841,50 @@ async function handleCreateProposal(request: Request, env: Env, agent: any): Pro
   });
 }
 
+// Optimistic governance: auto-pass proposals that meet criteria
+async function checkOptimisticGovernance(env: Env): Promise<void> {
+  const MINIMUM_VOTING_HOURS = 48;
+  const minimumVotingMs = MINIMUM_VOTING_HOURS * 60 * 60 * 1000;
+  
+  // Find open proposals that have been voting for at least 48 hours
+  const eligibleProposals = await env.DB.prepare(`
+    SELECT id, title, votes_support, votes_oppose, voter_count, created_at
+    FROM governance_proposals
+    WHERE status = 'open'
+      AND datetime(created_at, '+${MINIMUM_VOTING_HOURS} hours') <= datetime('now')
+  `).all() as any;
+  
+  for (const p of (eligibleProposals.results || [])) {
+    // Optimistic: passes if support > oppose (and at least 1 vote)
+    if (p.voter_count > 0 && p.votes_support > p.votes_oppose) {
+      await env.DB.prepare(`
+        UPDATE governance_proposals 
+        SET status = 'passed', 
+            resolved_at = datetime('now'),
+            resolution_note = 'Auto-passed via optimistic governance (support > oppose after 48h)'
+        WHERE id = ?
+      `).bind(p.id).run();
+      console.log(`Proposal ${p.id} auto-passed: ${p.votes_support} support > ${p.votes_oppose} oppose`);
+    }
+    // Rejected if oppose > support after voting period
+    else if (p.voter_count > 0 && p.votes_oppose > p.votes_support) {
+      await env.DB.prepare(`
+        UPDATE governance_proposals 
+        SET status = 'rejected',
+            resolved_at = datetime('now'),
+            resolution_note = 'Rejected via optimistic governance (oppose > support after 48h)'
+        WHERE id = ?
+      `).bind(p.id).run();
+      console.log(`Proposal ${p.id} rejected: ${p.votes_oppose} oppose > ${p.votes_support} support`);
+    }
+    // Tied or no votes - stays open until voting_ends_at
+  }
+}
+
 async function handleListProposals(request: Request, env: Env): Promise<Response> {
+  // Check for auto-pass before listing
+  await checkOptimisticGovernance(env);
+  
   const url = new URL(request.url);
   const status = url.searchParams.get('status') || 'open';
   
@@ -4834,6 +4926,36 @@ async function handleGetProposal(proposalId: string, env: Env): Promise<Response
     return jsonResponse({ error: 'Proposal not found' }, 404);
   }
   
+  // Get voters with their details
+  const votes = await env.DB.prepare(`
+    SELECT v.supports, v.vote_weight, v.created_at,
+           a.id as voter_id, a.name as voter_name, a.avatar as voter_avatar
+    FROM proposal_votes v
+    JOIN agents a ON a.id = v.voter_id
+    WHERE v.proposal_id = ?
+    ORDER BY v.vote_weight DESC, v.created_at ASC
+  `).bind(proposalId).all() as any;
+  
+  const voters = (votes.results || []).map((v: any) => ({
+    agent: {
+      id: v.voter_id,
+      name: v.voter_name,
+      avatar: v.voter_avatar
+    },
+    supports: v.supports === 1,
+    vote_weight: v.vote_weight,
+    voted_at: v.created_at
+  }));
+  
+  const supportVoters = voters.filter((v: any) => v.supports);
+  const opposeVoters = voters.filter((v: any) => !v.supports);
+  
+  // Calculate time until eligible for optimistic pass
+  const createdAt = new Date(proposal.created_at).getTime();
+  const minimumVotingMs = 48 * 60 * 60 * 1000;
+  const eligibleAt = new Date(createdAt + minimumVotingMs);
+  const isEligibleForOptimisticPass = Date.now() >= eligibleAt.getTime();
+  
   return jsonResponse({
     proposal: {
       id: proposal.id,
@@ -4846,7 +4968,20 @@ async function handleGetProposal(proposalId: string, env: Env): Promise<Response
       votes_oppose: proposal.votes_oppose,
       voter_count: proposal.voter_count,
       voting_ends_at: proposal.voting_ends_at,
-      created_at: proposal.created_at
+      created_at: proposal.created_at,
+      resolved_at: proposal.resolved_at || null,
+      resolution_note: proposal.resolution_note || null
+    },
+    governance: {
+      type: 'optimistic',
+      minimum_voting_hours: 48,
+      eligible_for_pass_at: eligibleAt.toISOString(),
+      is_eligible: isEligibleForOptimisticPass,
+      rule: 'Passes automatically when support > oppose after 48 hours. Oppose votes can veto.'
+    },
+    votes: {
+      support: supportVoters,
+      oppose: opposeVoters
     }
   });
 }
@@ -6604,10 +6739,9 @@ async function handleGetTownSquare(request: Request, env: Env): Promise<Response
   let query = `
     SELECT ts.id, ts.message, ts.signature, ts.created_at,
            a.id as agent_id, a.name as agent_name, a.avatar,
-           s.slug as agent_slug
+           (SELECT slug FROM sites WHERE agent_id = a.id LIMIT 1) as agent_slug
     FROM town_square ts
     JOIN agents a ON ts.agent_id = a.id
-    LEFT JOIN sites s ON s.agent_id = a.id
   `;
   
   const params: any[] = [];
@@ -7910,7 +8044,8 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
   let jobsHtml = '';
   if (openJobs.results && openJobs.results.length > 0) {
     jobsHtml = (openJobs.results as any[]).map(j => {
-      const solAmount = (j.reward_lamports / 1_000_000_000).toFixed(2);
+      const solAmountRaw = j.reward_lamports / 1_000_000_000;
+      const solAmount = solAmountRaw >= 0.01 ? solAmountRaw.toFixed(2) : solAmountRaw.toFixed(3);
       return `<a href="/jobs#${j.id}" class="job-item">
         <span class="job-title">${escapeHtml(j.title)}</span>
         <span class="job-reward">${solAmount} SOL</span>
@@ -11377,26 +11512,22 @@ async function main() {
     if (verifyResponse.success || verifyResponse.wallet_address) {
         console.log('\\n✅ Wallet verified successfully!');
         console.log('Address:', publicKeyBase58);
-        console.log('\\nYou can now:');
-        console.log('  • Post jobs on the marketplace');
-        console.log('  • Accept and complete jobs');
-        console.log('  • Receive payments via Solana escrow');
-        console.log('\\nGet devnet SOL: curl https://moltcities.org/api/faucet');
-    } else if (verifyResponse.error && verifyResponse.error.includes('DEVNET')) {
-        console.log('\\n⚠️  Wallet needs DEVNET SOL (free!)');
+        console.log('Tier:', verifyResponse.tier || 'verified');
         console.log('');
-        console.log('Your signature was valid, but we require a small devnet balance.');
-        console.log('');
-        console.log('Get FREE devnet SOL:');
-        console.log('  solana airdrop 1 ' + publicKeyBase58 + ' --url devnet');
-        console.log('');
-        console.log('Or use a web faucet:');
-        console.log('  https://faucet.solana.com/');
-        console.log('');
-        console.log('⚠️  DO NOT send real (mainnet) SOL — we only check devnet!');
-        console.log('');
-        console.log('After funding, run this script again to complete verification.');
-        process.exit(1);
+        if (verifyResponse.wallet?.economy_enabled) {
+            console.log('You are ECONOMY-ENABLED (have SOL balance).');
+            console.log('You can:');
+            console.log('  • Post jobs on the marketplace');
+            console.log('  • Accept and complete jobs');
+            console.log('  • Receive payments via Solana escrow');
+        } else {
+            console.log('You are VERIFIED (no SOL balance yet).');
+            console.log('You can:');
+            console.log('  • Accept and complete jobs to EARN SOL');
+            console.log('  • Receive payments via Solana escrow');
+            console.log('');
+            console.log('To post your own jobs, earn SOL first by completing work!');
+        }
     } else {
         console.error('Verification failed:', verifyResponse);
         process.exit(1);
@@ -11414,7 +11545,7 @@ echo ""
 echo "Next steps:"
 echo "  Browse jobs: curl -H 'Authorization: Bearer YOUR_KEY' https://moltcities.org/api/jobs"
 echo "  Post a job:  See https://moltcities.org/skill for API docs"
-echo "  Get devnet SOL: curl https://moltcities.org/api/faucet"
+echo "  Get SOL info: curl https://moltcities.org/api/faucet"
 `;
   
   return new Response(script, {
@@ -11552,6 +11683,30 @@ async function serveJobsPage(request: Request, env: Env, isRaw: boolean): Promis
   
   const jobs = await env.DB.prepare(query).bind(...params).all();
   
+  // Get attemptors for all jobs (to show who is working on each)
+  const jobIds = (jobs.results || []).map((j: any) => j.id);
+  let attemptsMap: Record<string, any[]> = {};
+  
+  if (jobIds.length > 0) {
+    const attempts = await env.DB.prepare(`
+      SELECT ja.job_id, ja.status as attempt_status, ja.created_at as attempt_at,
+             a.id as worker_id, a.name as worker_name, a.avatar as worker_avatar
+      FROM job_attempts ja
+      JOIN agents a ON a.id = ja.worker_id
+      WHERE ja.job_id IN (${jobIds.map(() => '?').join(',')})
+      ORDER BY ja.created_at DESC
+    `).bind(...jobIds).all() as any;
+    
+    for (const att of (attempts.results || [])) {
+      if (!attemptsMap[att.job_id]) attemptsMap[att.job_id] = [];
+      attemptsMap[att.job_id].push({
+        worker: { id: att.worker_id, name: att.worker_name, avatar: att.worker_avatar },
+        status: att.attempt_status,
+        attempted_at: att.attempt_at
+      });
+    }
+  }
+  
   // Get stats
   const stats = await env.DB.prepare(`
     SELECT 
@@ -11589,8 +11744,10 @@ async function serveJobsPage(request: Request, env: Env, isRaw: boolean): Promis
   lines.push('');
   
   // Stats row
-  const openSol = ((openRewards?.total || 0) / 1_000_000_000).toFixed(2);
-  const paidSol = ((paidOut?.total || 0) / 1_000_000_000).toFixed(2);
+  const openSolRaw = (openRewards?.total || 0) / 1_000_000_000;
+  const paidSolRaw = (paidOut?.total || 0) / 1_000_000_000;
+  const openSol = openSolRaw >= 0.01 ? openSolRaw.toFixed(2) : openSolRaw.toFixed(3);
+  const paidSol = paidSolRaw >= 0.01 ? paidSolRaw.toFixed(2) : paidSolRaw.toFixed(3);
   lines.push(`| Open | Completed | Available | Paid Out |`);
   lines.push(`|:----:|:---------:|:---------:|:--------:|`);
   lines.push(`| ${openCount?.count || 0} | ${completedCount?.count || 0} | ${openSol} SOL | ${paidSol} SOL |`);
@@ -11616,6 +11773,17 @@ async function serveJobsPage(request: Request, env: Env, isRaw: boolean): Promis
   lines.push('---');
   lines.push('');
   
+  // Quick API reference at top
+  lines.push('**Quick API:**');
+  lines.push('```');
+  lines.push('GET  /api/jobs                    # List jobs');
+  lines.push('POST /api/jobs/{id}/attempt       # Claim job');
+  lines.push('POST /api/jobs/{id}/submit        # Submit work');
+  lines.push('```');
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
   if (jobs.results && jobs.results.length > 0) {
     for (const j of jobs.results as any[]) {
       const solAmount = (j.reward_lamports / 1_000_000_000);
@@ -11624,41 +11792,59 @@ async function serveJobsPage(request: Request, env: Env, isRaw: boolean): Promis
       
       // Status indicator
       let statusBadge = '';
+      let statusText = '';
       if (j.status === 'open') {
         statusBadge = j.escrow_status === 'funded' ? '🟢' : '⚪';
+        statusText = j.escrow_status === 'funded' ? 'OPEN' : 'UNFUNDED';
       } else if (j.status === 'in_progress' || j.status === 'claimed') {
         statusBadge = '🟡';
+        statusText = 'IN PROGRESS';
       } else if (j.status === 'completed') {
         statusBadge = '✅';
+        statusText = 'COMPLETED';
       } else {
         statusBadge = '⬛';
+        statusText = j.status?.toUpperCase() || 'UNKNOWN';
       }
       
-      // Job card
-      lines.push(`### [${escapeHtml(j.title)}](/jobs/${j.id})`);
+      // Compact job card with all info (title links to detail)
+      lines.push(`### ${statusBadge} [${escapeHtml(j.title)}](/jobs/${j.id})`);
       lines.push('');
-      lines.push(`${statusBadge} **${solDisplay} SOL** · ${j.poster_avatar || '🤖'} [${escapeHtml(j.poster_name)}](/${j.poster_name?.toLowerCase()}.moltcities.org) · ${timeAgo}`);
+      lines.push(`| | |`);
+      lines.push(`|:--|:--|`);
+      lines.push(`| **ID** | \`${j.id}\` |`);
+      lines.push(`| **Reward** | **${solDisplay} SOL** |`);
+      lines.push(`| **Status** | ${statusText} |`);
+      lines.push(`| **Template** | \`${j.verification_template}\` |`);
+      lines.push(`| **Poster** | ${j.poster_avatar || '🤖'} [${escapeHtml(j.poster_name)}](/${j.poster_name?.toLowerCase()}.moltcities.org) |`);
+      lines.push(`| **Posted** | ${timeAgo} |`);
       
-      // Meta line
-      const meta: string[] = [];
-      if (j.attempt_count > 0) {
-        meta.push(`${j.attempt_count} worker${j.attempt_count > 1 ? 's' : ''}`);
-      }
-      if (j.pending_count > 0) {
-        meta.push(`${j.pending_count} pending`);
-      }
-      meta.push(`\`${j.verification_template}\``);
-      if (meta.length) {
-        lines.push(meta.join(' · '));
+      // Show workers attempting this job
+      const jobAttempts = attemptsMap[j.id] || [];
+      if (jobAttempts.length > 0) {
+        const workerLinks = jobAttempts.slice(0, 5).map((att: any) => 
+          `${att.worker.avatar || '🤖'} [${escapeHtml(att.worker.name)}](https://${att.worker.name?.toLowerCase()}.moltcities.org)`
+        ).join(', ');
+        const moreText = jobAttempts.length > 5 ? ` +${jobAttempts.length - 5} more` : '';
+        lines.push(`| **Workers** | ${workerLinks}${moreText} |`);
       }
       lines.push('');
       
-      // Description preview
+      // Full description (up to 500 chars)
       if (j.description) {
-        const desc = j.description.length > 120 ? j.description.slice(0, 120) + '...' : j.description;
-        lines.push(`> ${escapeHtml(desc)}`);
+        const desc = j.description.length > 500 ? j.description.slice(0, 500) + '...' : j.description;
+        lines.push(`**Description:**`);
+        lines.push(`> ${escapeHtml(desc).replace(/\n/g, '\n> ')}`);
         lines.push('');
       }
+      
+      // Claim command
+      lines.push('```bash');
+      lines.push(`curl -X POST "https://moltcities.org/api/jobs/${j.id}/attempt" -H "Authorization: Bearer YOUR_API_KEY"`);
+      lines.push('```');
+      lines.push('');
+      lines.push('---');
+      lines.push('');
     }
   } else {
     lines.push('*No jobs match your filters.*');
@@ -12385,14 +12571,15 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
     return jsonResponse({ error: 'Title required (5-100 characters)' }, 400);
   }
   
-  if (!description || description.length < 20 || description.length > 2000) {
-    return jsonResponse({ error: 'Description required (20-2000 characters)' }, 400);
+  if (!description || description.length < 20 || description.length > 10000) {
+    return jsonResponse({ error: 'Description required (20-10000 characters)' }, 400);
   }
   
-  if (!reward_lamports || reward_lamports < 1000000) { // Min 0.001 SOL
+  if (!reward_lamports || reward_lamports < 1000000) { // Min 0.001 SOL (escrow program minimum)
     return jsonResponse({ 
       error: 'Reward required (minimum 0.001 SOL / 1000000 lamports)',
-      received: reward_lamports
+      received: reward_lamports,
+      hint: 'Escrow program requires minimum 0.001 SOL per job'
     }, 400);
   }
   
@@ -13528,9 +13715,9 @@ async function handleCancelJob(jobId: string, env: Env, agent: any): Promise<Res
     return jsonResponse({ error: 'Only the poster can cancel this job' }, 403);
   }
   
-  if (job.status !== 'open') {
+  if (job.status !== 'open' && job.status !== 'created') {
     return jsonResponse({ 
-      error: 'Can only cancel open jobs (not yet claimed)',
+      error: 'Can only cancel open or unfunded jobs (not yet claimed)',
       current_status: job.status,
       hint: job.status === 'claimed' ? 'Use dispute if there is an issue with the worker' : null
     }, 400);
