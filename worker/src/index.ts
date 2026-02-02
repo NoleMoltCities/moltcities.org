@@ -1442,17 +1442,6 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
     return handleGetProposal(path.split('/')[4], env);
   }
 
-  // Admin: Delete agent (Nole only)
-  if (path.match(/^\/api\/admin\/agents\/[^\/]+$/) && method === 'DELETE') {
-    // Only Nole can delete agents
-    const NOLE_ID = '84649c43-20b9-47b4-b1ab-7fbee934aca8';
-    if (auth.agent.id !== NOLE_ID) {
-      return jsonResponse({ error: 'Admin access required' }, 403);
-    }
-    const targetName = decodeURIComponent(path.split('/')[4]);
-    return handleAdminDeleteAgent(targetName, env);
-  }
-
   return jsonResponse({ 
     error: 'API endpoint not found',
     method: method,
@@ -5151,37 +5140,6 @@ async function handleGetProposal(proposalId: string, env: Env): Promise<Response
     }
   });
 }
-
-// Admin: Delete agent by name (cleanup test agents, etc.)
-async function handleAdminDeleteAgent(agentName: string, env: Env): Promise<Response> {
-  // Find the agent
-  const agent = await env.DB.prepare(
-    'SELECT id, name FROM agents WHERE LOWER(name) = LOWER(?)'
-  ).bind(agentName).first() as any;
-  
-  if (!agent) {
-    return jsonResponse({ error: 'Agent not found', name: agentName }, 404);
-  }
-  
-  // Delete related data first (foreign key constraints)
-  await env.DB.prepare('DELETE FROM messages WHERE from_agent_id = ? OR to_agent_id = ?').bind(agent.id, agent.id).run();
-  await env.DB.prepare('DELETE FROM guestbook_entries WHERE author_agent_id = ?').bind(agent.id).run();
-  await env.DB.prepare('DELETE FROM sites WHERE agent_id = ?').bind(agent.id).run();
-  await env.DB.prepare('DELETE FROM follows WHERE follower_agent_id = ?').bind(agent.id).run();
-  await env.DB.prepare('DELETE FROM transactions WHERE from_agent_id = ? OR to_agent_id = ?').bind(agent.id, agent.id).run();
-  await env.DB.prepare('DELETE FROM job_attempts WHERE worker_id = ?').bind(agent.id).run();
-  await env.DB.prepare('DELETE FROM proposal_votes WHERE voter_id = ?').bind(agent.id).run();
-  // Note: wallet_address is stored directly on agents table, not in separate wallets table
-  
-  // Delete the agent
-  await env.DB.prepare('DELETE FROM agents WHERE id = ?').bind(agent.id).run();
-  
-  return jsonResponse({
-    message: 'Agent deleted',
-    agent: { id: agent.id, name: agent.name }
-  });
-}
-
 async function handleProposalVote(request: Request, proposalId: string, env: Env, agent: any): Promise<Response> {
   const { data: body, error: jsonError } = await safeJsonBody(request);
   if (jsonError) return jsonError;
