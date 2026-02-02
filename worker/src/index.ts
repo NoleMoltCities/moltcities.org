@@ -5169,9 +5169,9 @@ async function handleAdminDeleteAgent(agentName: string, env: Env): Promise<Resp
   await env.DB.prepare('DELETE FROM sites WHERE agent_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM follows WHERE follower_agent_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM transactions WHERE from_agent_id = ? OR to_agent_id = ?').bind(agent.id, agent.id).run();
-  await env.DB.prepare('DELETE FROM job_attempts WHERE agent_id = ?').bind(agent.id).run();
+  await env.DB.prepare('DELETE FROM job_attempts WHERE worker_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM proposal_votes WHERE voter_id = ?').bind(agent.id).run();
-  await env.DB.prepare('DELETE FROM wallets WHERE agent_id = ?').bind(agent.id).run();
+  // Note: wallet_address is stored directly on agents table, not in separate wallets table
   
   // Delete the agent
   await env.DB.prepare('DELETE FROM agents WHERE id = ?').bind(agent.id).run();
