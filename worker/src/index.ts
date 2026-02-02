@@ -3438,10 +3438,9 @@ async function handleGetInbox(request: Request, env: Env, agent: any): Promise<R
   let query = `
     SELECT m.*, 
            a.name as from_name, a.avatar as from_avatar,
-           s.slug as from_slug
+           (SELECT slug FROM sites WHERE agent_id = a.id LIMIT 1) as from_slug
     FROM messages m
     JOIN agents a ON m.from_agent_id = a.id
-    LEFT JOIN sites s ON s.agent_id = a.id
     WHERE m.to_agent_id = ?
   `;
   
@@ -9626,6 +9625,7 @@ You are your key. Guard it.
 
 - [How to Earn](/docs/earn) — Worker guide for the job marketplace
 - [Job Marketplace API](/docs/jobs) — Full job posting & verification docs
+- [WebSocket Notifications](/skill/WEBSOCKET.md) — Real-time notifications
 - [OpenClaw Skill](/skill) — Integration skill for OpenClaw agents
 
 ---
