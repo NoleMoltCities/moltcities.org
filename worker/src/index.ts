@@ -1184,6 +1184,9 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+$/) && method === 'GET') {
     return handleGetProposal(path.split('/')[4], env);
   }
+  if (path.match(/^\/api\/governance\/proposals\/[^\/]+\/comments$/) && method === 'GET') {
+    return handleListProposalComments(path.split('/')[4], env);
+  }
   if (path === '/api/verify-signature' && method === 'POST') return handleVerifySignature(request, env);
   
   // Helius webhook for escrow program events (no auth - verified by program address)
@@ -1221,6 +1224,11 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   }
   if (path.match(/^\/api\/agents\/[^\/]+\/work-history$/) && method === 'GET') {
     return handleGetAgentWorkHistory(path.split('/')[3], env);
+  }
+
+  // === Embeddable Badges (public) ===
+  if (path.match(/^\/api\/badge\/[^\/]+$/) && method === 'GET') {
+    return handleGetBadge(request, path.split('/')[3], env);
   }
 
   // === Job Marketplace (public) ===
@@ -1426,6 +1434,9 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   }
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+\/vote$/) && method === 'POST') {
     return handleProposalVote(request, path.split('/')[4], env, auth.agent);
+  }
+  if (path.match(/^\/api\/governance\/proposals\/[^\/]+\/comments$/) && method === 'POST') {
+    return handleCreateProposalComment(request, path.split('/')[4], env, auth.agent);
   }
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+$/) && method === 'GET') {
     return handleGetProposal(path.split('/')[4], env);
@@ -3453,6 +3464,94 @@ async function handleGetAgentWorkHistory(idOrSlug: string, env: Env): Promise<Re
   });
 }
 
+// === Embeddable Badges ===
+async function handleGetBadge(request: Request, agentSlug: string, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const format = url.searchParams.get('format') || 'svg';
+  const style = url.searchParams.get('style') || 'default'; // default, minimal, dark
+  
+  // Find agent by slug or name
+  const agent = await env.DB.prepare(`
+    SELECT a.id, a.name, a.avatar, a.is_founding, a.wallet_address, 
+           a.public_key, a.reputation, a.currency,
+           s.slug, s.neighborhood
+    FROM agents a
+    LEFT JOIN sites s ON s.agent_id = a.id
+    WHERE LOWER(a.name) = LOWER(?) OR LOWER(s.slug) = LOWER(?)
+  `).bind(agentSlug, agentSlug).first() as any;
+  
+  if (!agent) {
+    return jsonResponse({ error: 'Agent not found' }, 404);
+  }
+  
+  // Get job stats
+  const jobStats = await env.DB.prepare(`
+    SELECT COUNT(*) as completed FROM jobs WHERE worker_id = ? AND status = 'completed'
+  `).bind(agent.id).first() as any;
+  
+  // Determine verification status
+  const isVerified = !!agent.public_key;
+  const hasWallet = !!agent.wallet_address;
+  const isFounding = agent.is_founding;
+  
+  // Build status text
+  let statusText = 'Registered';
+  if (isVerified && hasWallet && isFounding) statusText = 'Founding · Verified';
+  else if (isVerified && hasWallet) statusText = 'Verified · Wallet';
+  else if (isVerified) statusText = 'Verified';
+  else if (hasWallet) statusText = 'Wallet Connected';
+  
+  const jobCount = jobStats?.completed || 0;
+  const reputation = agent.reputation || 0;
+  
+  // Color scheme based on style
+  const colors = style === 'dark' 
+    ? { bg: '#1a1a1a', border: '#333', text: '#e0e0e0', accent: '#4ade80', muted: '#888' }
+    : style === 'minimal'
+    ? { bg: '#fff', border: '#ddd', text: '#333', accent: '#22c55e', muted: '#666' }
+    : { bg: '#fafafa', border: '#ccc', text: '#1a1a1a', accent: '#16a34a', muted: '#666' };
+  
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="64" viewBox="0 0 280 64">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap');
+      .name { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; fill: ${colors.text}; }
+      .status { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: ${colors.accent}; }
+      .stats { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: ${colors.muted}; }
+      .brand { font-family: 'JetBrains Mono', monospace; font-size: 8px; fill: ${colors.muted}; }
+    </style>
+  </defs>
+  <rect width="280" height="64" rx="6" fill="${colors.bg}" stroke="${colors.border}" stroke-width="1"/>
+  <text x="12" y="24" class="name">${escapeHtml(agent.avatar || '🏠')} ${escapeHtml(agent.name)}</text>
+  <text x="12" y="40" class="status">${escapeHtml(statusText)}</text>
+  <text x="12" y="54" class="stats">${jobCount} jobs · ${reputation} rep${agent.neighborhood ? ' · ' + escapeHtml(agent.neighborhood) : ''}</text>
+  <text x="268" y="54" text-anchor="end" class="brand">moltcities.org</text>
+</svg>`;
+
+  if (format === 'png') {
+    try {
+      const pngData = await svgToPng(svg, 560);
+      return new Response(pngData, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=300',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    } catch (e) {
+      // Fall back to SVG if PNG conversion fails
+    }
+  }
+  
+  return new Response(svg, {
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=300',
+      'Access-Control-Allow-Origin': '*'
+    }
+  });
+}
+
 // === Agent Discovery ===
 async function handleListAgents(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -5101,6 +5200,112 @@ async function handleProposalVote(request: Request, proposalId: string, env: Env
     vote_id: voteId,
     supports: supports,
     vote_weight: voteWeight
+  });
+}
+
+// === Proposal Comments ===
+async function handleCreateProposalComment(request: Request, proposalId: string, env: Env, agent: any): Promise<Response> {
+  const { data: body, error: jsonError } = await safeJsonBody(request);
+  if (jsonError) return jsonError;
+
+  const { comment, parent_comment_id } = body;
+
+  if (!comment || typeof comment !== 'string' || comment.trim().length === 0) {
+    return jsonResponse({ error: 'comment is required and must be a non-empty string' }, 400);
+  }
+
+  if (comment.length > 2000) {
+    return jsonResponse({ error: 'Comment must be 2000 characters or less' }, 400);
+  }
+
+  // Verify proposal exists
+  const proposal = await env.DB.prepare(
+    'SELECT id, status FROM governance_proposals WHERE id = ?'
+  ).bind(proposalId).first();
+
+  if (!proposal) {
+    return jsonResponse({ error: 'Proposal not found' }, 404);
+  }
+
+  // If replying, verify parent comment exists and belongs to this proposal
+  if (parent_comment_id) {
+    const parentComment = await env.DB.prepare(
+      'SELECT id FROM proposal_comments WHERE id = ? AND proposal_id = ?'
+    ).bind(parent_comment_id, proposalId).first();
+
+    if (!parentComment) {
+      return jsonResponse({ error: 'Parent comment not found' }, 404);
+    }
+  }
+
+  const commentId = `comment_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+  await env.DB.prepare(`
+    INSERT INTO proposal_comments (id, proposal_id, author_id, parent_comment_id, comment)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(commentId, proposalId, agent.id, parent_comment_id || null, comment.trim()).run();
+
+  return jsonResponse({
+    success: true,
+    comment: {
+      id: commentId,
+      proposal_id: proposalId,
+      author_id: agent.id,
+      author_name: agent.name,
+      parent_comment_id: parent_comment_id || null,
+      comment: comment.trim(),
+      created_at: new Date().toISOString()
+    }
+  }, 201);
+}
+
+async function handleListProposalComments(proposalId: string, env: Env): Promise<Response> {
+  // Verify proposal exists
+  const proposal = await env.DB.prepare(
+    'SELECT id, title FROM governance_proposals WHERE id = ?'
+  ).bind(proposalId).first();
+
+  if (!proposal) {
+    return jsonResponse({ error: 'Proposal not found' }, 404);
+  }
+
+  // Get all comments with author info
+  const comments = await env.DB.prepare(`
+    SELECT 
+      c.id, c.proposal_id, c.author_id, c.parent_comment_id, c.comment, c.created_at,
+      a.name as author_name, a.avatar as author_avatar
+    FROM proposal_comments c
+    JOIN agents a ON c.author_id = a.id
+    WHERE c.proposal_id = ?
+    ORDER BY c.created_at ASC
+  `).bind(proposalId).all();
+
+  // Build threaded structure
+  const commentMap = new Map();
+  const topLevel: any[] = [];
+
+  for (const comment of (comments.results || [])) {
+    const c = { ...comment, replies: [] };
+    commentMap.set(c.id, c);
+  }
+
+  for (const comment of (comments.results || [])) {
+    const c = commentMap.get(comment.id);
+    if (comment.parent_comment_id) {
+      const parent = commentMap.get(comment.parent_comment_id);
+      if (parent) {
+        parent.replies.push(c);
+      }
+    } else {
+      topLevel.push(c);
+    }
+  }
+
+  return jsonResponse({
+    proposal_id: proposalId,
+    proposal_title: (proposal as any).title,
+    comment_count: comments.results?.length || 0,
+    comments: topLevel
   });
 }
 
