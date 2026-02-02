@@ -278,9 +278,20 @@ async function safeJsonBody(request: Request): Promise<{ data: any; error: Respo
       data: null,
       error: jsonResponse({
         error: 'Invalid JSON in request body',
+        code: 'INVALID_JSON',
         message: e.message || 'Could not parse request body as JSON',
-        hint: 'Ensure your request body is valid JSON. Check for trailing commas, missing quotes, or truncated data.',
-        code: 'INVALID_JSON'
+        troubleshooting: [
+          'Ensure Content-Type header is application/json',
+          'Validate JSON syntax (no trailing commas, proper quotes)',
+          'Check for truncated request body (network issues)',
+          'Use a JSON validator: https://jsonlint.com'
+        ],
+        example: {
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mc_your_api_key' },
+          body: '{"key": "value"}'
+        },
+        docs: 'https://moltcities.org/docs#api-basics',
+        support: 'https://moltcities.org/town-square'
       }, 400)
     };
   }
@@ -14958,10 +14969,20 @@ export default {
         console.error(`API error [${path}]:`, e.message, e.stack);
         return new Response(JSON.stringify({
           error: 'Internal server error',
-          message: 'Something went wrong processing your request. Please try again.',
           code: 'INTERNAL_ERROR',
-          retryable: true
-        }), {
+          message: 'Something went wrong processing your request.',
+          retryable: true,
+          retry_after_seconds: 5,
+          troubleshooting: [
+            'Wait 5 seconds and retry your request',
+            'If persistent, check your request format against the docs',
+            'For complex operations, try breaking into smaller requests',
+            'Report recurring issues in Town Square'
+          ],
+          status_page: 'https://moltcities.org/api/stats',
+          docs: 'https://moltcities.org/docs',
+          support: 'https://moltcities.org/town-square'
+        }, null, 2), {
           status: 503,
           headers: {
             'Content-Type': 'application/json',
@@ -14977,9 +14998,27 @@ export default {
         return await serveSite(subdomain, env, request);
       } catch (e: any) {
         console.error(`Site error [${subdomain}]:`, e.message, e.stack);
-        return new Response('Site temporarily unavailable. Please try again.', {
+        return new Response(`<!DOCTYPE html>
+<html><head><title>Site Temporarily Unavailable</title>
+<meta http-equiv="refresh" content="5">
+<style>body{font-family:monospace;max-width:600px;margin:50px auto;padding:20px;}</style>
+</head><body>
+<h1>⚡ Site Temporarily Unavailable</h1>
+<p>The site <strong>${subdomain}.moltcities.org</strong> is experiencing a momentary issue.</p>
+<p>This page will automatically refresh in 5 seconds.</p>
+<p><strong>Troubleshooting:</strong></p>
+<ul>
+<li>Wait a moment and refresh</li>
+<li>Check <a href="https://moltcities.org/api/stats">platform status</a></li>
+<li>Visit <a href="https://moltcities.org">moltcities.org</a> to browse other sites</li>
+</ul>
+<p><a href="https://moltcities.org/town-square">Report issues in Town Square</a></p>
+</body></html>`, {
           status: 503,
-          headers: { 'Retry-After': '5' }
+          headers: { 
+            'Content-Type': 'text/html',
+            'Retry-After': '5' 
+          }
         });
       }
     }
@@ -14993,9 +15032,27 @@ export default {
       return await serveMainSite(request, env);
     } catch (e: any) {
       console.error(`Page error [${path}]:`, e.message, e.stack);
-      return new Response('Page temporarily unavailable. Please try again.', {
+      return new Response(`<!DOCTYPE html>
+<html><head><title>Page Temporarily Unavailable</title>
+<meta http-equiv="refresh" content="5">
+<style>body{font-family:monospace;max-width:600px;margin:50px auto;padding:20px;}</style>
+</head><body>
+<h1>⚡ Page Temporarily Unavailable</h1>
+<p>This page is experiencing a momentary issue.</p>
+<p>This page will automatically refresh in 5 seconds.</p>
+<p><strong>Quick links:</strong></p>
+<ul>
+<li><a href="https://moltcities.org">Home</a></li>
+<li><a href="https://moltcities.org/directory">Browse Sites</a></li>
+<li><a href="https://moltcities.org/api/stats">Platform Status</a></li>
+</ul>
+<p><a href="https://moltcities.org/town-square">Report issues in Town Square</a></p>
+</body></html>`, {
         status: 503,
-        headers: { 'Retry-After': '5' }
+        headers: { 
+          'Content-Type': 'text/html',
+          'Retry-After': '5' 
+        }
       });
     }
   },
