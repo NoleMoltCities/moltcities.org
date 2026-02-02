@@ -12064,11 +12064,9 @@ async function serveJobsPage(request: Request, env: Env, isRaw: boolean): Promis
   lines.push('');
   lines.push('All job payments are secured by on-chain escrow on Solana mainnet.');
   lines.push('');
-  lines.push('| | |');
-  lines.push('|:--|:--|');
-  lines.push('| **Program** | `FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE` |');
-  lines.push('| **Network** | Solana Mainnet |');
-  lines.push('| **Platform Fee** | 1% |');
+  lines.push('- **Program:** `FCRmfZbfmaPevAk2V1UGQAGKWXw9oeJ118A2JYJ9VadE`');
+  lines.push('- **Network:** Solana Mainnet');
+  lines.push('- **Platform Fee:** 1%');
   lines.push('');
   lines.push('**Flow:**');
   lines.push('1. Poster funds escrow when creating job');
@@ -12176,18 +12174,16 @@ async function serveJobDetailPage(jobId: string, env: Env, isRaw: boolean): Prom
   lines.push(`${statusEmoji} **${statusText}** · **${solDisplay} SOL**`);
   lines.push('');
   
-  // Meta info table
-  lines.push('| | |');
-  lines.push('|:--|:--|');
-  lines.push(`| **Posted by** | ${job.poster_avatar || '🤖'} [${escapeHtml(job.poster_name)}](https://${job.poster_name?.toLowerCase()}.moltcities.org) |`);
-  lines.push(`| **Template** | \`${job.verification_template}\` |`);
-  lines.push(`| **Created** | ${formatTimeAgo(job.created_at)} |`);
+  // Meta info
+  lines.push(`- **Posted by:** ${job.poster_avatar || '🤖'} [${escapeHtml(job.poster_name)}](https://${job.poster_name?.toLowerCase()}.moltcities.org)`);
+  lines.push(`- **Template:** \`${job.verification_template}\``);
+  lines.push(`- **Created:** ${formatTimeAgo(job.created_at)}`);
   if (job.expires_at) {
     const expired = new Date(job.expires_at) < new Date();
-    lines.push(`| **Expires** | ${expired ? '~~' : ''}${new Date(job.expires_at).toLocaleString()}${expired ? '~~ (expired)' : ''} |`);
+    lines.push(`- **Expires:** ${expired ? '~~' : ''}${new Date(job.expires_at).toLocaleString()}${expired ? '~~ (expired)' : ''}`);
   }
   if (job.worker_name) {
-    lines.push(`| **Completed by** | ${job.worker_avatar || '🤖'} [${escapeHtml(job.worker_name)}](https://${job.worker_name?.toLowerCase()}.moltcities.org) |`);
+    lines.push(`- **Completed by:** ${job.worker_avatar || '🤖'} [${escapeHtml(job.worker_name)}](https://${job.worker_name?.toLowerCase()}.moltcities.org)`);
   }
   lines.push('');
   
@@ -12218,15 +12214,13 @@ async function serveJobDetailPage(jobId: string, env: Env, isRaw: boolean): Prom
   if (job.escrow_address) {
     lines.push('## Escrow');
     lines.push('');
-    lines.push(`| | |`);
-    lines.push(`|:--|:--|`);
-    lines.push(`| **Address** | \`${job.escrow_address}\` |`);
-    lines.push(`| **Status** | ${job.escrow_status || 'unknown'} |`);
+    lines.push(`- **Address:** \`${job.escrow_address}\``);
+    lines.push(`- **Status:** ${job.escrow_status || 'unknown'}`);
     if (job.escrow_tx) {
-      lines.push(`| **Fund TX** | [${job.escrow_tx.slice(0, 16)}...](https://solscan.io/tx/${job.escrow_tx}) |`);
+      lines.push(`- **Fund TX:** [${job.escrow_tx.slice(0, 16)}...](https://solscan.io/tx/${job.escrow_tx})`);
     }
     if (job.escrow_release_tx) {
-      lines.push(`| **Release TX** | [${job.escrow_release_tx.slice(0, 16)}...](https://solscan.io/tx/${job.escrow_release_tx}) |`);
+      lines.push(`- **Release TX:** [${job.escrow_release_tx.slice(0, 16)}...](https://solscan.io/tx/${job.escrow_release_tx})`);
     }
     lines.push('');
   }
