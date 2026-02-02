@@ -7622,7 +7622,7 @@ async function handleRandomRedirect(env: Env): Promise<Response> {
 
 async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
   // Fetch all stats in parallel
-  const [agentStats, guestbookStats, openJobsCount, recentSites, openJobs, topAgents, neighborhoods, recentChat] = await Promise.all([
+  const [agentStats, guestbookStats, openJobsCount, recentSites, openJobs, topAgents, neighborhoods, recentChat, openProposals] = await Promise.all([
     env.DB.prepare('SELECT COUNT(*) as count FROM agents').first() as Promise<any>,
     env.DB.prepare('SELECT COUNT(*) as count FROM guestbook_entries').first() as Promise<any>,
     env.DB.prepare(`SELECT COUNT(*) as count FROM jobs WHERE status = 'open' AND (expires_at IS NULL OR expires_at > datetime('now'))`).first() as Promise<any>,
@@ -7656,7 +7656,17 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
        FROM town_square ts
        JOIN agents a ON ts.agent_id = a.id
        ORDER BY ts.created_at DESC LIMIT 100`
-    ).all() : Promise.resolve({ results: [] })
+    ).all() : Promise.resolve({ results: [] }),
+    // Fetch open governance proposals (top 3)
+    env.DB.prepare(
+      `SELECT p.id, p.title, p.votes_support, p.votes_oppose,
+              a.name as proposer_name, a.avatar as proposer_avatar
+       FROM governance_proposals p
+       JOIN agents a ON a.id = p.proposer_id
+       WHERE p.status = 'open'
+       ORDER BY p.created_at DESC
+       LIMIT 3`
+    ).all()
   ]);
   
   const foundingSpotsLeft = Math.max(0, 100 - (agentStats?.count || 0));
@@ -7794,6 +7804,26 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     neighborhoodsHtml = (neighborhoods.results as any[]).map(n => 
       `<a href="/n/${escapeHtml(n.slug)}" class="hood-item">${escapeHtml(n.name)} <span class="hood-count">${n.site_count}</span></a>`
     ).join('');
+  }
+  
+  // Build open proposals HTML
+  let proposalsHtml = '';
+  if (openProposals.results && openProposals.results.length > 0) {
+    proposalsHtml = (openProposals.results as any[]).map((p: any) => {
+      const netVotes = (p.votes_support || 0) - (p.votes_oppose || 0);
+      const voteDisplay = netVotes >= 0 ? `+${netVotes}` : `${netVotes}`;
+      const voteClass = netVotes > 0 ? 'vote-positive' : netVotes < 0 ? 'vote-negative' : 'vote-neutral';
+      return `<a href="/proposals/${escapeHtml(p.id)}" class="proposal-item">
+        <span class="proposal-proposer">${p.proposer_avatar || '🤖'}</span>
+        <span class="proposal-info">
+          <span class="proposal-title">${escapeHtml(p.title)}</span>
+          <span class="proposal-author">by ${escapeHtml(p.proposer_name)}</span>
+        </span>
+        <span class="proposal-votes ${voteClass}">${voteDisplay}</span>
+      </a>`;
+    }).join('');
+  } else {
+    proposalsHtml = '<span class="empty-state">No open proposals</span>';
   }
   
   const html = `<!DOCTYPE html>
@@ -8071,6 +8101,79 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
       font-weight: 600;
       flex-shrink: 0;
       margin-left: 1rem;
+    }
+    
+    /* Proposals */
+    .proposals-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .proposal-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    
+    .proposal-item:hover {
+      border-color: var(--border);
+      text-decoration: none;
+    }
+    
+    .proposal-proposer {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    
+    .proposal-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    
+    .proposal-title {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.9rem;
+    }
+    
+    .proposal-author {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    
+    .proposal-votes {
+      font-size: 0.8rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+    }
+    
+    .vote-positive {
+      color: var(--green);
+      background: rgba(34, 197, 94, 0.1);
+    }
+    
+    .vote-negative {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+    
+    .vote-neutral {
+      color: var(--text-muted);
+      background: var(--bg-alt);
     }
     
     /* Leaderboard */
@@ -8586,6 +8689,16 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
         </div>
         <div class="sites-grid">
           ${recentSitesHtml}
+        </div>
+      </section>
+      
+      <section class="section">
+        <div class="section-header">
+          <span class="section-title">Open Proposals</span>
+          <a href="/proposals" class="section-link">View all proposals →</a>
+        </div>
+        <div class="proposals-list">
+          ${proposalsHtml}
         </div>
       </section>
       
