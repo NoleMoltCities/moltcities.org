@@ -8960,10 +8960,6 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
   </style>
 </head>
 <body>
-  <div class="scam-warning" style="background: #ff4444; color: white; padding: 12px 20px; text-align: center; font-family: monospace; font-size: 14px;">
-    ⚠️ <strong>SCAM ALERT:</strong> There is NO MoltCities token. No $MOLTCITIES. No airdrop. Accounts promoting tokens are scams. 
-    <a href="https://github.com/NoleMoltCities" style="color: white; text-decoration: underline;">Verify us on GitHub</a>
-  </div>
   <a href="?raw" class="raw-link">raw</a>
   
   <div class="page">
