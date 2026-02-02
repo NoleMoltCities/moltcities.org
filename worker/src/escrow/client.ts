@@ -17,10 +17,8 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
-// Helper to convert Uint8Array to Buffer for @solana/web3.js compatibility
-function toBuffer(arr: Uint8Array): Buffer {
-  return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
-}
+// @solana/web3.js accepts Uint8Array directly for instruction data
+// No Buffer conversion needed - this keeps Workers compatibility
 
 import {
   JOB_ESCROW_PROGRAM_ID,
@@ -255,17 +253,17 @@ export class EscrowClient {
    * Args: job_id (string), job_id_hash ([u8;32]), amount (u64), expiry_seconds (Option<i64>)
    */
   private buildCreateEscrowData(
-    jobId: string,
+    _jobId: string,  // unused - program only needs hash
     jobIdHash: Uint8Array,
     amountLamports: number | bigint,
     expirySeconds: number | null = null
   ): Uint8Array {
+    // Pinocchio program format: [job_id_hash: [u8; 32], amount: u64, expiry_seconds: i64]
     return concatBytes(
-      new Uint8Array(DISCRIMINATORS.create_escrow),
-      this.encodeString(jobId),
-      jobIdHash, // [u8; 32] - no length prefix
-      this.encodeU64(amountLamports),
-      this.encodeOptionI64(expirySeconds),
+      new Uint8Array(DISCRIMINATORS.create_escrow),  // 1 byte
+      jobIdHash,                                      // 32 bytes
+      this.encodeU64(amountLamports),                 // 8 bytes
+      this.encodeI64(expirySeconds ?? DEFAULT_EXPIRY_SECONDS),  // 8 bytes (0 = default in program)
     );
   }
 
@@ -296,7 +294,7 @@ export class EscrowClient {
         { pubkey: posterPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);
@@ -304,6 +302,76 @@ export class EscrowClient {
     transaction.feePayer = posterPubkey;
 
     return { transaction, escrowPDA, jobIdHash };
+  }
+
+  /**
+   * Create and fund escrow using platform wallet (server-side signing)
+   * For platform-funded jobs where the platform fronts the SOL
+   */
+  async createAndFundEscrow(
+    jobId: string,
+    amountLamports: number | bigint,
+    expirySeconds: number | null = null
+  ): Promise<{ 
+    signature: string; 
+    escrowPDA: string;
+    amount: { lamports: number; sol: number };
+  }> {
+    if (!this.platformWallet) {
+      throw new Error('Platform wallet not configured - set PLATFORM_WALLET_SECRET');
+    }
+
+    let transaction: Transaction;
+    let escrowPDA: PublicKey;
+
+    // Step 1: Build transaction
+    try {
+      const result = await this.buildCreateEscrowTx(
+        jobId,
+        this.platformWallet.publicKey,
+        amountLamports,
+        expirySeconds ?? DEFAULT_EXPIRY_SECONDS
+      );
+      transaction = result.transaction;
+      escrowPDA = result.escrowPDA;
+    } catch (e: any) {
+      throw new Error(`Step 1 (buildTx) failed: ${e.message}`);
+    }
+
+    // Step 2: Sign transaction
+    try {
+      transaction.sign(this.platformWallet);
+    } catch (e: any) {
+      throw new Error(`Step 2 (sign) failed: ${e.message}`);
+    }
+    
+    // Step 3: Serialize
+    let rawTx: Uint8Array;
+    try {
+      rawTx = transaction.serialize();
+    } catch (e: any) {
+      throw new Error(`Step 3 (serialize) failed: ${e.message}`);
+    }
+    
+    // Step 4: Send
+    let signature: string;
+    try {
+      signature = await this.connection.sendRawTransaction(rawTx, {
+        skipPreflight: false,
+        preflightCommitment: 'processed'
+      });
+    } catch (e: any) {
+      throw new Error(`Step 4 (send) failed: ${e.message}`);
+    }
+
+    return {
+      signature,
+      escrowPDA: escrowPDA.toBase58(),
+      amount: {
+        lamports: Number(amountLamports),
+        sol: Number(amountLamports) / LAMPORTS_PER_SOL
+      }
+    };
   }
 
   // ============== assign_worker ==============
@@ -336,7 +404,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: initiatorPubkey, isSigner: true, isWritable: false },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);
@@ -396,7 +464,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: workerPubkey, isSigner: true, isWritable: false },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);
@@ -434,7 +502,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);
@@ -471,7 +539,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);
@@ -523,7 +591,7 @@ export class EscrowClient {
         { pubkey: workerPubkey, isSigner: false, isWritable: true },   // worker
         { pubkey: this.platformPubkey, isSigner: false, isWritable: true }, // platform (fee recipient)
       ],
-      data: toBuffer(new Uint8Array(DISCRIMINATORS.release_to_worker)),
+      data: new Uint8Array(DISCRIMINATORS.release_to_worker),
     });
 
     const transaction = new Transaction().add(ix);
@@ -574,7 +642,7 @@ export class EscrowClient {
         { pubkey: this.platformWallet.publicKey, isSigner: true, isWritable: false }, // platform_authority
         { pubkey: posterPubkey, isSigner: false, isWritable: true },   // poster
       ],
-      data: toBuffer(new Uint8Array(DISCRIMINATORS.refund_to_poster)),
+      data: new Uint8Array(DISCRIMINATORS.refund_to_poster),
     });
 
     const transaction = new Transaction().add(ix);
@@ -621,7 +689,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: posterPubkey, isSigner: true, isWritable: true },
       ],
-      data: toBuffer(new Uint8Array(DISCRIMINATORS.cancel_escrow)),
+      data: new Uint8Array(DISCRIMINATORS.cancel_escrow),
     });
 
     const transaction = new Transaction().add(ix);
@@ -647,7 +715,7 @@ export class EscrowClient {
         { pubkey: escrowPDA, isSigner: false, isWritable: true },
         { pubkey: initiatorPubkey, isSigner: true, isWritable: false },
       ],
-      data: toBuffer(new Uint8Array(DISCRIMINATORS.initiate_dispute)),
+      data: new Uint8Array(DISCRIMINATORS.initiate_dispute),
     });
 
     const transaction = new Transaction().add(ix);
@@ -711,7 +779,7 @@ export class EscrowClient {
         { pubkey: initiatorPubkey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: toBuffer(data),
+      data: data,
     });
 
     const transaction = new Transaction().add(ix);

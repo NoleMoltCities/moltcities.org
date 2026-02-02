@@ -4,7 +4,7 @@
  */
 
 import { createEscrowClient, EscrowClient, lamportsToSol, solToLamports, computeProofHash } from './escrow';
-import { EscrowStatus, STATUS_NAMES as ESCROW_STATUS_NAMES, REVIEW_WINDOW_SECONDS } from './escrow/idl';
+import { EscrowStatus, STATUS_NAMES as ESCROW_STATUS_NAMES, REVIEW_WINDOW_SECONDS, PLATFORM_WALLET } from './escrow/idl';
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 // @ts-ignore - WASM import
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
@@ -1767,6 +1767,22 @@ async function handleRegisterVerify(request: Request, env: Env): Promise<Respons
   
   // Parse agent name and referrer from pending.name (format: "name|REF:referrer" or just "name")
   let agentName = pending.name;
+  
+  // RACE CONDITION FIX: Check if name was taken while verifying
+  // (Another registration may have completed between init and verify)
+  const nameTaken = await env.DB.prepare(
+    'SELECT id FROM agents WHERE LOWER(name) = LOWER(?)'
+  ).bind(agentName.split('|REF:')[0]).first();
+  
+  if (nameTaken) {
+    await env.DB.prepare('DELETE FROM pending_registrations WHERE id = ?').bind(pending_id).run();
+    return jsonResponse({
+      error: 'Name was taken during registration',
+      name: agentName.split('|REF:')[0],
+      hint: 'Another agent registered with this name while you were verifying. Choose a different name and try again.',
+      retry_url: '/api/register'
+    }, 409);
+  }
   let referredBy: string | null = null;
   if (pending.name.includes('|REF:')) {
     const parts = pending.name.split('|REF:');
@@ -12687,9 +12703,12 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
   }
   
   // Check if poster has wallet (required for escrow)
-  if (!agent.wallet_address) {
+  const platform_funded = body.platform_funded === true;
+  
+  // Wallet required unless platform is funding
+  if (!platform_funded && !agent.wallet_address) {
     return jsonResponse({
-      error: 'Wallet required to post jobs',
+      error: 'Wallet required to post jobs (or use platform_funded: true)',
       hint: 'Verify your Solana wallet first: POST /api/wallet/challenge'
     }, 400);
   }
@@ -12700,17 +12719,66 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
     ? new Date(Date.now() + expires_in_hours * 60 * 60 * 1000).toISOString()
     : null;
   
+  // If platform_funded, create and fund escrow immediately
+  let escrowResult: { signature: string; escrowPDA: string; amount: { lamports: number; sol: number } } | null = null;
+  if (platform_funded) {
+    try {
+      const escrowClient = createEscrowClient(env);
+      if (!escrowClient.getPlatformWalletInfo().configured) {
+        return jsonResponse({
+          error: 'Platform wallet not configured',
+          hint: 'Contact platform admin to enable platform-funded jobs'
+        }, 500);
+      }
+      
+      // Create and fund escrow with platform wallet
+      escrowResult = await escrowClient.createAndFundEscrow(
+        jobId,
+        reward_lamports,
+        30 * 24 * 60 * 60 // 30 days expiry
+      );
+    } catch (e: any) {
+      return jsonResponse({
+        error: 'Failed to create escrow',
+        details: e.message,
+        hint: 'Platform wallet may have insufficient balance'
+      }, 500);
+    }
+  }
+  
   await env.DB.prepare(`
     INSERT INTO jobs (id, poster_id, title, description, reward_lamports, reward_token,
-                      verification_template, verification_params, status, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                      verification_template, verification_params, status, created_at, expires_at,
+                      escrow_address, escrow_tx, escrow_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)
   `).bind(
     jobId, agent.id, title, description, reward_lamports, reward_token || 'SOL',
-    verification_template, JSON.stringify(params), now, expiresAt
+    verification_template, JSON.stringify(params), now, expiresAt,
+    escrowResult?.escrowPDA || null,
+    escrowResult?.signature || null,
+    escrowResult ? 'funded' : 'unfunded'
   ).run();
   
+  // Log escrow event if funded
+  if (escrowResult) {
+    await env.DB.prepare(`
+      INSERT INTO escrow_events (id, job_id, event_type, actor_id, actor_wallet, details)
+      VALUES (?, ?, 'escrow_created', ?, ?, ?)
+    `).bind(
+      generateId(), jobId, 'platform', PLATFORM_WALLET,
+      JSON.stringify({ 
+        platform_funded: true,
+        amount_lamports: reward_lamports,
+        escrow_address: escrowResult.escrowPDA,
+        tx_signature: escrowResult.signature
+      })
+    ).run();
+  }
+  
   return jsonResponse({
-    message: 'Job created! Fund the escrow to make it live.',
+    message: escrowResult 
+      ? 'Job created and funded! Workers can claim immediately.' 
+      : 'Job created! Fund the escrow to make it live.',
     job_id: jobId,
     title,
     reward: {
@@ -12721,8 +12789,18 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
     verification_template,
     status: 'open',
     expires_at: expiresAt,
-    next_steps: {
-      fund_escrow: 'TODO: Escrow funding instructions will be added when Solana program is deployed',
+    escrow: escrowResult ? {
+      address: escrowResult.escrowPDA,
+      tx_signature: escrowResult.signature,
+      funded: true,
+      platform_funded: true,
+      explorer_url: `https://solscan.io/tx/${escrowResult.signature}`
+    } : null,
+    next_steps: escrowResult ? {
+      view_job: `GET /api/jobs/${jobId}`,
+      workers_can_claim: true
+    } : {
+      fund_escrow: `POST /api/jobs/${jobId}/fund`,
       view_job: `GET /api/jobs/${jobId}`,
       cancel: `DELETE /api/jobs/${jobId}`
     }
