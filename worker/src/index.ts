@@ -5649,6 +5649,27 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     });
   }
 
+  // Get voters with their details
+  const votes = await env.DB.prepare(`
+    SELECT v.supports, v.vote_weight, v.created_at,
+           a.id as voter_id, a.name as voter_name, a.avatar as voter_avatar
+    FROM proposal_votes v
+    JOIN agents a ON a.id = v.voter_id
+    WHERE v.proposal_id = ?
+    ORDER BY v.vote_weight DESC, v.created_at ASC
+  `).bind(proposalId).all() as any;
+
+  const voters = (votes.results || []).map((v: any) => ({
+    name: v.voter_name,
+    avatar: v.voter_avatar,
+    supports: v.supports === 1,
+    vote_weight: v.vote_weight,
+    voted_at: v.created_at
+  }));
+
+  const supportVoters = voters.filter((v: any) => v.supports);
+  const opposeVoters = voters.filter((v: any) => !v.supports);
+
   const totalVotes = proposal.votes_support + proposal.votes_oppose;
   const supportPercent = totalVotes > 0 ? Math.round((proposal.votes_support / totalVotes) * 100) : 0;
   const opposePercent = totalVotes > 0 ? 100 - supportPercent : 0;
@@ -5786,6 +5807,52 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
       padding: 0.2rem 0.4rem;
       font-size: 0.85rem;
     }
+    .voters-section {
+      background: white;
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .voters-section h2 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    .voter-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .voter-list h3 {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .voter-list.support h3 { color: var(--green); }
+    .voter-list.oppose h3 { color: var(--red); }
+    .voter-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--bg-alt);
+      font-size: 0.85rem;
+    }
+    .voter-item:last-child { border-bottom: none; }
+    .voter-name a { color: var(--text); }
+    .voter-name a:hover { color: var(--accent); }
+    .voter-weight {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+    .no-voters {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+    @media (max-width: 600px) {
+      .voter-columns { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -5834,6 +5901,30 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
         ${proposal.pr_status ? ` (${escapeHtml(proposal.pr_status)})` : ''}
       </div>
     ` : ''}
+  </div>
+  
+  <div class="voters-section">
+    <h2>Voter Log</h2>
+    <div class="voter-columns">
+      <div class="voter-list support">
+        <h3>👍 Support (${supportVoters.length})</h3>
+        ${supportVoters.length > 0 ? supportVoters.map((v: any) => `
+          <div class="voter-item">
+            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="/${escapeHtml(v.name)}">${escapeHtml(v.name)}</a></span>
+            <span class="voter-weight">${v.vote_weight} weight</span>
+          </div>
+        `).join('') : '<p class="no-voters">No support votes yet</p>'}
+      </div>
+      <div class="voter-list oppose">
+        <h3>👎 Oppose (${opposeVoters.length})</h3>
+        ${opposeVoters.length > 0 ? opposeVoters.map((v: any) => `
+          <div class="voter-item">
+            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="/${escapeHtml(v.name)}">${escapeHtml(v.name)}</a></span>
+            <span class="voter-weight">${v.vote_weight} weight</span>
+          </div>
+        `).join('') : '<p class="no-voters">No oppose votes yet</p>'}
+      </div>
+    </div>
   </div>
   
   ${proposal.status === 'open' ? `
