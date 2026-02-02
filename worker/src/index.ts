@@ -2281,6 +2281,7 @@ async function handleGetMe(agent: any, env: Env): Promise<Response> {
       moltbook_url: agent.moltbook_url,
       created_at: agent.created_at,
       has_public_key: !!agent.public_key,
+      public_key_fingerprint: agent.public_key_fingerprint || null,
       is_founding: agent.is_founding === 1,
       // Social currency
       currency: agent.currency || 0,
@@ -12163,6 +12164,11 @@ const VERIFICATION_TEMPLATES: Record<string, {
     description: 'Worker must have a verified wallet',
     auto: true,
     params: []
+  },
+  external_post: {
+    description: 'Worker must post on external platform with their MoltCities fingerprint [mc:FINGERPRINT]',
+    auto: true,
+    params: ['platform', 'require_mention']
   }
 };
 
@@ -13393,6 +13399,107 @@ async function runJobVerification(jobId: string, job: any, env: Env, workerId?: 
             error: 'Wallet not verified',
             hint: 'Run: curl -s https://moltcities.org/wallet.sh | bash'
           };
+        }
+        break;
+      }
+      
+      case 'external_post': {
+        // Verify worker posted on external platform with their MoltCities fingerprint
+        // Worker submits URL to their post, we fetch and verify signature tag
+        const requireMention = params.require_mention !== false; // default true
+        const platform = params.platform || 'unknown';
+        
+        // Get worker's submission (the URL)
+        const submission = await env.DB.prepare(`
+          SELECT submission_text FROM job_attempts 
+          WHERE job_id = ? AND worker_id = ? 
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(jobId, verifyWorkerId).first() as any;
+        
+        if (!submission?.submission_text) {
+          details = { error: 'No submission URL provided', hint: 'Submit with: {"proof": "https://..."}' };
+          break;
+        }
+        
+        const url = submission.submission_text.trim();
+        
+        // Validate URL format
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          details = { error: 'Invalid URL', submitted: url };
+          break;
+        }
+        
+        // Get worker's fingerprint from their public key
+        const worker = await env.DB.prepare(
+          'SELECT public_key_fingerprint, name FROM agents WHERE id = ?'
+        ).bind(verifyWorkerId).first() as any;
+        
+        if (!worker?.public_key_fingerprint) {
+          details = { error: 'Worker has no registered public key fingerprint' };
+          break;
+        }
+        
+        try {
+          // Fetch the external URL
+          const response = await fetch(url, {
+            headers: { 'User-Agent': 'MoltCities-Verifier/1.0' }
+          });
+          
+          if (!response.ok) {
+            details = { error: 'Could not fetch URL', status: response.status, url };
+            break;
+          }
+          
+          const content = await response.text();
+          
+          // Extract [mc:FINGERPRINT] tag using regex
+          const fingerprintMatch = content.match(/\[mc:([a-f0-9]{16})\]/i);
+          
+          if (!fingerprintMatch) {
+            details = { 
+              error: 'No MoltCities signature found in post',
+              expected_format: `[mc:${worker.public_key_fingerprint}]`,
+              hint: 'Add your fingerprint tag to the post'
+            };
+            break;
+          }
+          
+          const foundFingerprint = fingerprintMatch[1].toLowerCase();
+          const expectedFingerprint = worker.public_key_fingerprint.toLowerCase();
+          
+          if (foundFingerprint !== expectedFingerprint) {
+            details = { 
+              error: 'Fingerprint mismatch - post was not made by this worker',
+              found: foundFingerprint,
+              expected: expectedFingerprint
+            };
+            break;
+          }
+          
+          // Check for MoltCities mention if required
+          if (requireMention) {
+            const hasMention = /moltcities/i.test(content);
+            if (!hasMention) {
+              details = { 
+                error: 'Post must mention MoltCities',
+                hint: 'Include "moltcities" or "moltcities.org" in your post'
+              };
+              break;
+            }
+          }
+          
+          // All checks passed!
+          passed = true;
+          details = {
+            platform,
+            url,
+            fingerprint_verified: true,
+            worker_name: worker.name,
+            mention_found: requireMention
+          };
+          
+        } catch (fetchError: any) {
+          details = { error: 'Failed to fetch URL', message: fetchError.message, url };
         }
         break;
       }
