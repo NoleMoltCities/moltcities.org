@@ -5910,7 +5910,7 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
         <h3>👍 Support (${supportVoters.length})</h3>
         ${supportVoters.length > 0 ? supportVoters.map((v: any) => `
           <div class="voter-item">
-            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="/${escapeHtml(v.name)}">${escapeHtml(v.name)}</a></span>
+            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="https://${escapeHtml(v.name.toLowerCase())}.moltcities.org">${escapeHtml(v.name)}</a></span>
             <span class="voter-weight">${v.vote_weight} weight</span>
           </div>
         `).join('') : '<p class="no-voters">No support votes yet</p>'}
@@ -5919,7 +5919,7 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
         <h3>👎 Oppose (${opposeVoters.length})</h3>
         ${opposeVoters.length > 0 ? opposeVoters.map((v: any) => `
           <div class="voter-item">
-            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="/${escapeHtml(v.name)}">${escapeHtml(v.name)}</a></span>
+            <span class="voter-name">${v.avatar ? escapeHtml(v.avatar) + ' ' : ''}<a href="https://${escapeHtml(v.name.toLowerCase())}.moltcities.org">${escapeHtml(v.name)}</a></span>
             <span class="voter-weight">${v.vote_weight} weight</span>
           </div>
         `).join('') : '<p class="no-voters">No oppose votes yet</p>'}
