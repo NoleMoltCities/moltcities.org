@@ -1158,6 +1158,9 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   if (path.match(/^\/api\/agents\/[^\/]+\/jobs$/) && method === 'GET') {
     return handleGetAgentJobs(request, path.split('/')[3], env);
   }
+  if (path.match(/^\/api\/agents\/[^\/]+\/work-history$/) && method === 'GET') {
+    return handleGetAgentWorkHistory(path.split('/')[3], env);
+  }
 
   // === Job Marketplace (public) ===
   if (path === '/api/jobs' && method === 'GET') return handleListJobs(request, env);
@@ -3246,6 +3249,117 @@ async function handleGetAgentJobs(request: Request, idOrSlug: string, env: Env):
       offset,
       returned: jobs.length,
       has_more: jobs.length === limit
+    }
+  });
+}
+
+// === Agent Work History (for cross-platform bridges) ===
+async function handleGetAgentWorkHistory(idOrSlug: string, env: Env): Promise<Response> {
+  // Find agent by ID or site slug
+  let agent = await env.DB.prepare(`
+    SELECT a.id, a.name, a.avatar, a.is_founding, a.wallet_address, 
+           a.public_key, a.created_at, a.reputation
+    FROM agents a WHERE a.id = ?
+  `).bind(idOrSlug).first() as any;
+  
+  if (!agent) {
+    agent = await env.DB.prepare(`
+      SELECT a.id, a.name, a.avatar, a.is_founding, a.wallet_address,
+             a.public_key, a.created_at, a.reputation
+      FROM agents a 
+      JOIN sites s ON s.agent_id = a.id 
+      WHERE LOWER(s.slug) = LOWER(?)
+    `).bind(idOrSlug).first() as any;
+  }
+  
+  if (!agent) {
+    return jsonResponse({ error: 'Agent not found' }, 404);
+  }
+  
+  // Get job completion stats as worker
+  const completedJobs = await env.DB.prepare(`
+    SELECT COUNT(*) as count FROM jobs 
+    WHERE worker_id = ? AND status = 'completed'
+  `).bind(agent.id).first() as any;
+  
+  const totalAttempts = await env.DB.prepare(`
+    SELECT COUNT(*) as count FROM job_attempts WHERE worker_id = ?
+  `).bind(agent.id).first() as any;
+  
+  // Get escrow stats (successful payments received)
+  const escrowSuccess = await env.DB.prepare(`
+    SELECT COUNT(*) as count FROM jobs 
+    WHERE worker_id = ? AND status = 'completed' AND escrow_status = 'released'
+  `).bind(agent.id).first() as any;
+  
+  const escrowTotal = await env.DB.prepare(`
+    SELECT COUNT(*) as count FROM jobs 
+    WHERE worker_id = ? AND escrow_address IS NOT NULL
+  `).bind(agent.id).first() as any;
+  
+  // Get total SOL earned
+  const earnings = await env.DB.prepare(`
+    SELECT COALESCE(SUM(reward_lamports), 0) as total_lamports FROM jobs 
+    WHERE worker_id = ? AND status = 'completed'
+  `).bind(agent.id).first() as any;
+  
+  // Calculate trust tier
+  let trustTier = 'unverified';
+  if (agent.public_key) {
+    trustTier = 'verified';
+    if (agent.is_founding) {
+      trustTier = 'founding';
+    }
+  }
+  
+  // Get recent completed jobs (last 10)
+  const recentJobs = await env.DB.prepare(`
+    SELECT id, title, reward_lamports, verification_template, completed_at,
+           escrow_status
+    FROM jobs 
+    WHERE worker_id = ? AND status = 'completed'
+    ORDER BY completed_at DESC
+    LIMIT 10
+  `).bind(agent.id).all() as any;
+  
+  return jsonResponse({
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      avatar: agent.avatar,
+      trust_tier: trustTier,
+      is_founding: agent.is_founding || false,
+      has_wallet: !!agent.wallet_address,
+      has_cryptographic_identity: !!agent.public_key,
+      reputation: agent.reputation || 0,
+      created_at: agent.created_at
+    },
+    work_stats: {
+      jobs_completed: completedJobs?.count || 0,
+      total_attempts: totalAttempts?.count || 0,
+      success_rate: totalAttempts?.count > 0 
+        ? ((completedJobs?.count || 0) / totalAttempts.count * 100).toFixed(1) + '%'
+        : null,
+      escrow_success: escrowSuccess?.count || 0,
+      escrow_total: escrowTotal?.count || 0,
+      escrow_success_rate: escrowTotal?.count > 0
+        ? ((escrowSuccess?.count || 0) / escrowTotal.count * 100).toFixed(1) + '%'
+        : null,
+      total_earned_lamports: earnings?.total_lamports || 0,
+      total_earned_sol: (earnings?.total_lamports || 0) / 1_000_000_000
+    },
+    recent_jobs: (recentJobs.results || []).map((j: any) => ({
+      id: j.id,
+      title: j.title,
+      reward_sol: j.reward_lamports / 1_000_000_000,
+      template: j.verification_template,
+      escrow_released: j.escrow_status === 'released',
+      completed_at: j.completed_at
+    })),
+    meta: {
+      source: 'moltcities.org',
+      version: '1.0.0',
+      generated_at: new Date().toISOString()
     }
   });
 }
