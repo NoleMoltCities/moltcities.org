@@ -28,7 +28,12 @@ zone_name = "moltcities.org"
 
 [vars]
 ENVIRONMENT = "production"
-SOLANA_NETWORK = "devnet"  # Switch to "mainnet" after mainnet deployment
+SOLANA_NETWORK = "mainnet"
+
+# Build-time constants (overridden by --define in CI)
+[define]
+BUILD_SHA = "\"local-dev\""
+BUILD_TIME = "\"local\""
 
 # Secret (set via: wrangler secret put PLATFORM_WALLET_SECRET)
 # This should be the JSON array of the private key bytes from the platform wallet

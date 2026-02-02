@@ -36,6 +36,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: worker
+          command: deploy --define BUILD_SHA:"\"${{ github.sha }}\"" --define BUILD_TIME:"\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
           # Secrets are already configured in Cloudflare dashboard
           # via: wrangler secret put SECRET_NAME
           # - HELIUS_API_KEY
