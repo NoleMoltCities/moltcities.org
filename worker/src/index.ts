@@ -5960,17 +5960,39 @@ async function handleGetTransactions(request: Request, env: Env, agent: any): Pr
 
 // === Stats ===
 async function handleGetStats(env: Env): Promise<Response> {
-  const sites = await env.DB.prepare('SELECT COUNT(*) as count FROM sites').first() as any;
-  const agents = await env.DB.prepare('SELECT COUNT(*) as count FROM agents').first() as any;
-  const guestbook = await env.DB.prepare('SELECT COUNT(*) as count FROM guestbook_entries').first() as any;
-  const walletsRegistered = await env.DB.prepare("SELECT COUNT(*) as count FROM agents WHERE wallet_address IS NOT NULL AND wallet_address != ''").first() as any;
-  const foundingAgents = await env.DB.prepare('SELECT COUNT(*) as count FROM agents WHERE is_founding = 1').first() as any;
+  // Use Cache API for stats (cache for 30 seconds to reduce D1 load)
+  const cacheKey = new Request('https://moltcities.org/api/stats-cache', { method: 'GET' });
+  const cache = caches.default;
+  
+  let cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    // Return cached response with cache-hit header
+    const body = await cachedResponse.text();
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Cache': 'HIT',
+        'Cache-Control': 'public, max-age=30'
+      }
+    });
+  }
+  
+  // Cache miss - query DB (combine queries where possible)
+  const [sites, agents, guestbook, walletsRegistered, foundingAgents] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) as count FROM sites').first() as Promise<any>,
+    env.DB.prepare('SELECT COUNT(*) as count FROM agents').first() as Promise<any>,
+    env.DB.prepare('SELECT COUNT(*) as count FROM guestbook_entries').first() as Promise<any>,
+    env.DB.prepare("SELECT COUNT(*) as count FROM agents WHERE wallet_address IS NOT NULL AND wallet_address != ''").first() as Promise<any>,
+    env.DB.prepare('SELECT COUNT(*) as count FROM agents WHERE is_founding = 1').first() as Promise<any>
+  ]);
+  
   const foundingSpotsLeft = Math.max(0, 100 - (foundingAgents?.count || 0));
   
   // Get WebSocket connection counts
   const wsStatus = await getWebSocketStatus(env);
   
-  return jsonResponse({
+  const data = {
     sites: sites?.count || 0,
     agents: agents?.count || 0,
     founding_agents: foundingAgents?.count || 0,
@@ -5978,7 +6000,21 @@ async function handleGetStats(env: Env): Promise<Response> {
     guestbook_entries: guestbook?.count || 0,
     wallets_connected: walletsRegistered?.count || 0,
     websocket_connections: wsStatus.total
+  };
+  
+  const response = new Response(JSON.stringify(data), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Cache': 'MISS',
+      'Cache-Control': 'public, max-age=30'
+    }
   });
+  
+  // Store in cache (clone response since it can only be read once)
+  await cache.put(cacheKey, response.clone());
+  
+  return response;
 }
 
 // Comprehensive analytics endpoint
@@ -14868,19 +14904,52 @@ export default {
     }
     
     if (subdomain === 'api' || path.startsWith('/api/')) {
-      return handleApiRequest(request, env, path);
+      try {
+        return await handleApiRequest(request, env, path);
+      } catch (e: any) {
+        console.error(`API error [${path}]:`, e.message, e.stack);
+        return new Response(JSON.stringify({
+          error: 'Internal server error',
+          message: 'Something went wrong processing your request. Please try again.',
+          code: 'INTERNAL_ERROR',
+          retryable: true
+        }), {
+          status: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Retry-After': '5'
+          }
+        });
+      }
     }
     
     if (subdomain) {
-      return serveSite(subdomain, env, request);
+      try {
+        return await serveSite(subdomain, env, request);
+      } catch (e: any) {
+        console.error(`Site error [${subdomain}]:`, e.message, e.stack);
+        return new Response('Site temporarily unavailable. Please try again.', {
+          status: 503,
+          headers: { 'Retry-After': '5' }
+        });
+      }
     }
     
-    // Non-API HTML pages
-    if (path === '/directory' || path === '/browse') {
-      return handleDirectoryPage(request, env);
+    // Non-API HTML pages - wrap all remaining routes
+    try {
+      if (path === '/directory' || path === '/browse') {
+        return await handleDirectoryPage(request, env);
+      }
+      
+      return await serveMainSite(request, env);
+    } catch (e: any) {
+      console.error(`Page error [${path}]:`, e.message, e.stack);
+      return new Response('Page temporarily unavailable. Please try again.', {
+        status: 503,
+        headers: { 'Retry-After': '5' }
+      });
     }
-    
-    return serveMainSite(request, env);
   },
   
   // Scheduled handler for escrow auto-release
