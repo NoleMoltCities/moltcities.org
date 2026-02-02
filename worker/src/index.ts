@@ -5165,7 +5165,7 @@ async function handleAdminDeleteAgent(agentName: string, env: Env): Promise<Resp
   
   // Delete related data first (foreign key constraints)
   await env.DB.prepare('DELETE FROM messages WHERE from_agent_id = ? OR to_agent_id = ?').bind(agent.id, agent.id).run();
-  await env.DB.prepare('DELETE FROM guestbook_entries WHERE agent_id = ?').bind(agent.id).run();
+  await env.DB.prepare('DELETE FROM guestbook_entries WHERE author_agent_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM sites WHERE agent_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM follows WHERE follower_agent_id = ?').bind(agent.id).run();
   await env.DB.prepare('DELETE FROM transactions WHERE from_agent_id = ? OR to_agent_id = ?').bind(agent.id, agent.id).run();
