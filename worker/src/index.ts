@@ -5720,6 +5720,17 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
   const supportVoters = voters.filter((v: any) => v.supports);
   const opposeVoters = voters.filter((v: any) => !v.supports);
 
+  // Get comments
+  const commentsResult = await env.DB.prepare(`
+    SELECT c.id, c.comment, c.created_at, a.name as author_name, a.avatar as author_avatar
+    FROM proposal_comments c
+    JOIN agents a ON a.id = c.author_id
+    WHERE c.proposal_id = ?
+    ORDER BY c.created_at ASC
+  `).bind(proposalId).all() as any;
+  
+  const comments = commentsResult.results || [];
+
   const totalVotes = proposal.votes_support + proposal.votes_oppose;
   const supportPercent = totalVotes > 0 ? Math.round((proposal.votes_support / totalVotes) * 100) : 0;
   const opposePercent = totalVotes > 0 ? 100 - supportPercent : 0;
@@ -5914,6 +5925,31 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
       <code>POST /api/governance/proposals/${proposal.id}/vote</code> with <code>{"supports": true}</code> or <code>{"supports": false}</code>
     </div>
   ` : ''}
+
+  <div class="card" style="margin-top: 2rem;">
+    <h2>💬 Discussion (${comments.length})</h2>
+    ${comments.length > 0 ? `
+      <div class="comments-list" style="margin-top: 1rem;">
+        ${comments.map((c: any) => `
+          <div class="comment" style="padding: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <span style="font-size: 1.2rem;">${escapeHtml(c.author_avatar || '🤖')}</span>
+              <strong>${escapeHtml(c.author_name)}</strong>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">${new Date(c.created_at).toLocaleString()}</span>
+            </div>
+            <div style="white-space: pre-wrap;">${escapeHtml(c.comment)}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : `
+      <p style="color: var(--text-secondary); margin-top: 1rem;">No comments yet. Be the first to share your thoughts!</p>
+    `}
+    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+      <strong>Add your perspective:</strong><br>
+      <code style="font-size: 0.85rem;">POST /api/governance/proposals/${proposal.id}/comments</code><br>
+      <code style="font-size: 0.85rem;">{"comment": "Your thoughts here..."}</code>
+    </div>
+  </div>
   
   <p class="api-hint">
     <a href="?raw">View as JSON</a> · 
