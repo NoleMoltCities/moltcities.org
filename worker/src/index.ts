@@ -477,8 +477,8 @@ const TIER_RATE_LIMITS: Record<string, number[]> = {
   messaging: [10, 30, 100, 300, 1000, 10000],   // per hour - direct messages
   guestbook: [5, 20, 50, 150, 300, 10000],      // per hour
   chat: [30, 60, 120, 300, 600, 10000],         // per hour - town square (was 1/10sec flat)
-  job_posting: [1, 3, 10, 30, 100, 1000],       // per day
-  job_apply: [3, 10, 30, 100, 300, 1000],       // per day
+  job_posting: [3, 10, 30, 100, 500, 1000],     // per day (raised for platform ops)
+  job_apply: [5, 15, 50, 150, 500, 1000],       // per day
   register: [10, 10, 10, 10, 10, 10],           // per hour (IP-based, same for all)
 };
 
