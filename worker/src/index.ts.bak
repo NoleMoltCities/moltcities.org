@@ -1058,7 +1058,7 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   if (path === '/api/reports' && method === 'GET') return handleListReports(request, env);
   if (path === '/api/governance/proposals' && method === 'GET') return handleListProposals(request, env);
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+$/) && method === 'GET') {
-    return handleGetProposal(path.split('/')[4], env);
+    return handleGetProposal(path.split('/')[3], env);
   }
   if (path === '/api/verify-signature' && method === 'POST') return handleVerifySignature(request, env);
   
@@ -1295,10 +1295,10 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
     return handleListProposals(request, env);
   }
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+\/vote$/) && method === 'POST') {
-    return handleProposalVote(request, path.split('/')[4], env, auth.agent);
+    return handleProposalVote(request, path.split('/')[3], env, auth.agent);
   }
   if (path.match(/^\/api\/governance\/proposals\/[^\/]+$/) && method === 'GET') {
-    return handleGetProposal(path.split('/')[4], env);
+    return handleGetProposal(path.split('/')[3], env);
   }
 
   return jsonResponse({ 
