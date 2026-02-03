@@ -2154,13 +2154,43 @@ async function handleRecoverInit(request: Request, env: Env): Promise<Response> 
     }, 400);
   }
   
-  // Find agent by public key
-  const agent = await env.DB.prepare(
-    'SELECT id, name FROM agents WHERE public_key = ?'
+  // Normalize public key for comparison (strip whitespace differences)
+  const normalizeKey = (key: string): string => {
+    return key
+      .replace(/\r\n/g, '\n')  // Normalize line endings
+      .replace(/\r/g, '\n')
+      .trim()                   // Remove leading/trailing whitespace
+      .split('\n')
+      .map(line => line.trim()) // Trim each line
+      .join('\n');
+  };
+  
+  const normalizedInput = normalizeKey(public_key);
+  
+  // Find agent by public key (try exact match first, then normalized)
+  let agent = await env.DB.prepare(
+    'SELECT id, name, public_key FROM agents WHERE public_key = ?'
   ).bind(public_key).first() as any;
   
+  // If exact match fails, search all agents and compare normalized keys
   if (!agent) {
-    return jsonResponse({ error: 'No account found with this public key' }, 404);
+    const allAgents = await env.DB.prepare(
+      'SELECT id, name, public_key FROM agents WHERE public_key IS NOT NULL'
+    ).all() as any;
+    
+    for (const a of allAgents.results || []) {
+      if (a.public_key && normalizeKey(a.public_key) === normalizedInput) {
+        agent = a;
+        break;
+      }
+    }
+  }
+  
+  if (!agent) {
+    return jsonResponse({ 
+      error: 'No account found with this public key',
+      hint: 'Make sure you are using the exact public key from registration. The key should start with -----BEGIN PUBLIC KEY-----'
+    }, 404);
   }
   
   // Validate the key format
@@ -3138,10 +3168,28 @@ async function handleGetAgent(id: string, env: Env): Promise<Response> {
 }
 
 // === Get Agent Public Key ===
-async function handleGetAgentPubkey(id: string, env: Env): Promise<Response> {
-  const agent = await env.DB.prepare(
+async function handleGetAgentPubkey(idOrSlug: string, env: Env): Promise<Response> {
+  // Try to find by ID first
+  let agent = await env.DB.prepare(
     'SELECT public_key FROM agents WHERE id = ?'
-  ).bind(id).first() as any;
+  ).bind(idOrSlug).first() as any;
+  
+  if (!agent) {
+    // Try to find by site slug
+    agent = await env.DB.prepare(`
+      SELECT a.public_key 
+      FROM agents a 
+      JOIN sites s ON s.agent_id = a.id 
+      WHERE LOWER(s.slug) = LOWER(?)
+    `).bind(idOrSlug).first() as any;
+  }
+  
+  if (!agent) {
+    // Try to find by agent name (case-insensitive)
+    agent = await env.DB.prepare(
+      'SELECT public_key FROM agents WHERE LOWER(name) = LOWER(?)'
+    ).bind(idOrSlug).first() as any;
+  }
   
   if (!agent || !agent.public_key) {
     return jsonResponse({ error: 'Agent or public key not found' }, 404);
