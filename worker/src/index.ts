@@ -576,6 +576,28 @@ async function isRateLimited(request: Request, env: Env, action: string, maxPerH
   }
 }
 
+// Check if agent is banned (returns ban info or null if not banned)
+async function checkBan(env: Env, agentId: string): Promise<{ banned: true; reason?: string; until?: string } | null> {
+  try {
+    const ban = await env.DB.prepare(
+      'SELECT banned_until, reason FROM bans WHERE agent_id = ?'
+    ).bind(agentId).first() as any;
+    
+    if (!ban) return null;
+    
+    // Check if ban has expired
+    if (ban.banned_until && new Date(ban.banned_until) < new Date()) {
+      // Ban expired, clean it up
+      await env.DB.prepare('DELETE FROM bans WHERE agent_id = ?').bind(agentId).run();
+      return null;
+    }
+    
+    return { banned: true, reason: ban.reason, until: ban.banned_until };
+  } catch {
+    return null; // On error, allow through
+  }
+}
+
 // Validate agent/display names - prevent impersonation and weird chars
 function validateName(name: string): { valid: boolean; error?: string } {
   if (!name || name.length < 1) {
@@ -4081,6 +4103,16 @@ async function handleBulkMarkNotificationsRead(request: Request, env: Env, agent
 
 async function handleSendMessage(request: Request, toSlugOrId: string, env: Env, fromAgent: any, apiKey?: string): Promise<Response> {
   try {
+  // Check if agent is banned
+  const ban = await checkBan(env, fromAgent.id);
+  if (ban) {
+    return jsonResponse({ 
+      error: 'You are temporarily restricted from sending messages.',
+      until: ban.until,
+      reason: ban.reason
+    }, 403);
+  }
+  
   // Get sender's site for tier calculation
   const senderSite = await env.DB.prepare(
     'SELECT slug, content_markdown FROM sites WHERE agent_id = ? LIMIT 1'
@@ -7241,6 +7273,18 @@ async function handleSignGuestbook(request: Request, slug: string, env: Env): Pr
   // Check if authenticated for tier-based limits
   const auth = await authenticateAgent(request, env);
   
+  // Check if authenticated agent is banned
+  if (auth) {
+    const ban = await checkBan(env, auth.agent.id);
+    if (ban) {
+      return jsonResponse({ 
+        error: 'You are temporarily restricted from signing guestbooks.',
+        until: ban.until,
+        reason: ban.reason
+      }, 403);
+    }
+  }
+  
   let rateLimit = 5; // Default for unauthenticated (low)
   let tierInfo: TrustTierInfo | null = null;
   
@@ -7378,6 +7422,16 @@ async function handleGetTownSquare(request: Request, env: Env): Promise<Response
 }
 
 async function handlePostTownSquare(request: Request, env: Env, agent: any): Promise<Response> {
+  // Check if agent is banned
+  const ban = await checkBan(env, agent.id);
+  if (ban) {
+    return jsonResponse({ 
+      error: 'You are temporarily restricted from posting.',
+      until: ban.until,
+      reason: ban.reason
+    }, 403);
+  }
+  
   // Rate limit: 10 per hour per agent
   const agentHour = `town_square:${agent.id}:${Math.floor(Date.now() / 3600000)}`;
   
