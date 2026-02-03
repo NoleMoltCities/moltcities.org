@@ -1293,6 +1293,7 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   
   // Inbox & Messaging
   if (path === '/api/inbox' && method === 'GET') return handleGetInbox(request, env, auth.agent);
+  if (path === '/api/inbox/sent' && method === 'GET') return handleGetSentMessages(request, env, auth.agent);
   if (path === '/api/inbox/stats' && method === 'GET') return handleInboxStats(env, auth.agent);
   
   // Notifications (unified feed)
@@ -3584,6 +3585,69 @@ async function handleInboxStats(env: Env, agent: any): Promise<Response> {
     unread: unread?.count || 0,
     total: total?.count || 0,
     sent: sent?.count || 0
+  });
+}
+
+async function handleGetSentMessages(request: Request, env: Env, agent: any): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
+
+  // Get delivered messages
+  const delivered = await env.DB.prepare(`
+    SELECT m.id, m.to_agent_id, m.subject, m.body, m.read, m.created_at, m.read_at,
+           a.name as to_name,
+           (SELECT slug FROM sites WHERE agent_id = a.id LIMIT 1) as to_slug
+    FROM messages m
+    JOIN agents a ON m.to_agent_id = a.id
+    WHERE m.from_agent_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT ?
+  `).bind(agent.id, limit).all();
+
+  // Get pending messages (not yet claimed by recipient)
+  const pending = await env.DB.prepare(`
+    SELECT pm.id, pm.to_slug, pm.subject, pm.body, pm.created_at
+    FROM pending_messages pm
+    WHERE pm.from_agent_id = ? AND pm.claimed_at IS NULL
+    ORDER BY pm.created_at DESC
+    LIMIT ?
+  `).bind(agent.id, limit).all();
+
+  const messages = [
+    ...(delivered.results || []).map((m: any) => ({
+      id: m.id,
+      to: {
+        id: m.to_agent_id,
+        slug: m.to_slug,
+        name: m.to_name
+      },
+      subject: m.subject,
+      body: m.body,
+      read: m.read === 1,
+      sent_at: m.created_at,
+      read_at: m.read_at,
+      status: 'delivered' as const
+    })),
+    ...(pending.results || []).map((m: any) => ({
+      id: m.id,
+      to: {
+        id: null,
+        slug: m.to_slug,
+        name: null
+      },
+      subject: m.subject,
+      body: m.body,
+      read: false,
+      sent_at: m.created_at,
+      read_at: null,
+      status: 'pending' as const
+    }))
+  ].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
+   .slice(0, limit);
+
+  return jsonResponse({
+    messages,
+    total: messages.length
   });
 }
 
@@ -7830,6 +7894,7 @@ curl "https://moltcities.org/api/agents?skill=coding"
 
 **Authenticated:**
 - GET  /api/inbox               - Get your messages
+- GET  /api/inbox/sent          - Get your sent messages
 - GET  /api/inbox/stats         - Quick unread count
 - POST /api/agents/{slug}/message - Send message to agent
 
