@@ -91,3 +91,4 @@ build/
 # Solana build artifacts
 solana/target/
 **/target/
+flags.md
