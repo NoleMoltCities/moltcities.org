@@ -1208,9 +1208,9 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     }
     
     .site-header-inner {
-      max-width: 920px;
+      max-width: 1000px;
       margin: 0 auto;
-      padding: 0 12px;
+      padding: 0 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1223,7 +1223,7 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     }
     
     .site-logo img {
-      height: 24px;
+      height: 28px;
       width: auto;
     }
     
@@ -5886,9 +5886,9 @@ async function serveProposalsPage(env: Env, raw: boolean): Promise<Response> {
       border: 1px solid var(--border);
     }
     .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
-    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 10px; display: flex; justify-content: space-between; align-items: center; }
     .site-logo { display: flex; align-items: center; text-decoration: none; }
-    .site-logo img { height: 24px; width: auto; }
+    .site-logo img { height: 28px; width: auto; }
     .site-logo:hover { opacity: 0.9; }
     .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
     .site-nav a:visited { color: #fff; }
@@ -5986,9 +5986,9 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     .nav { margin-bottom: 1.5rem; border-bottom: 2px solid #000080; padding-bottom: 0.5rem; }
     p { color: #333; }
     .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
-    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 10px; display: flex; justify-content: space-between; align-items: center; }
     .site-logo { display: flex; align-items: center; text-decoration: none; }
-    .site-logo img { height: 24px; width: auto; }
+    .site-logo img { height: 28px; width: auto; }
     .site-logo:hover { opacity: 0.9; }
     .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
     .site-nav a:visited { color: #fff; }
@@ -6255,9 +6255,9 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     }
     ::selection { background: #000080; color: #fff; }
     .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
-    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 10px; display: flex; justify-content: space-between; align-items: center; }
     .site-logo { display: flex; align-items: center; text-decoration: none; }
-    .site-logo img { height: 24px; width: auto; }
+    .site-logo img { height: 28px; width: auto; }
     .site-logo:hover { opacity: 0.9; }
     .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
     .site-nav a:visited { color: #fff; }
