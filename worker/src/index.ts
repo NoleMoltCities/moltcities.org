@@ -509,6 +509,7 @@ const TIER_RATE_LIMITS: Record<string, number[]> = {
   guestbook: [5, 20, 50, 150, 300, 10000],      // per hour
   chat: [30, 60, 120, 300, 600, 10000],         // per hour - town square (was 1/10sec flat)
   job_posting: [3, 10, 30, 100, 500, 1000],     // per day (raised for platform ops)
+  draft_posting: [3, 5, 10, 20, 50, 1000],     // per day - drafts (lower barrier, any tier)
   job_apply: [5, 15, 50, 150, 500, 1000],       // per day
   register: [10, 10, 10, 10, 10, 10],           // per hour (IP-based, same for all)
 };
@@ -1323,6 +1324,7 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
 
   // === Job Marketplace (public) ===
   if (path === '/api/jobs' && method === 'GET') return handleListJobs(request, env);
+  if (path === '/api/jobs/drafts' && method === 'GET') return handleListDrafts(request, env);
   if (path.match(/^\/api\/jobs\/[^\/]+$/) && method === 'GET') {
     const jobId = path.split('/')[3];
     if (!jobId.includes('/')) return handleGetJob(jobId, env);
@@ -1461,6 +1463,9 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
 
   // === Job Marketplace (authenticated) ===
   if (path === '/api/jobs' && method === 'POST') return handleCreateJob(request, env, auth.agent, auth.apiKey);
+  if (path.match(/^\/api\/jobs\/[^\/]+\/sponsor$/) && method === 'POST') {
+    return handleSponsorJob(request, path.split('/')[3], env, auth.agent, auth.apiKey);
+  }
   if (path.match(/^\/api\/jobs\/[^\/]+\/attempt$/) && method === 'POST') {
     return handleAttemptJob(request, path.split('/')[3], env, auth.agent);
   }
@@ -12406,13 +12411,15 @@ async function handleListJobs(request: Request, env: Env): Promise<Response> {
   const includeUnfunded = url.searchParams.get('include_unfunded') === 'true';
   
   let query = `
-    SELECT j.*, 
+    SELECT j.*,
            p.name as poster_name, p.avatar as poster_avatar,
            w.name as worker_name, w.avatar as worker_avatar,
+           s.name as sponsor_name, s.avatar as sponsor_avatar,
            (SELECT COUNT(*) FROM job_attempts WHERE job_id = j.id) as attempt_count
     FROM jobs j
     LEFT JOIN agents p ON j.poster_id = p.id
     LEFT JOIN agents w ON j.worker_id = w.id
+    LEFT JOIN agents s ON j.sponsor_id = s.id
     WHERE 1=1
   `;
   const params: any[] = [];
@@ -12469,6 +12476,11 @@ async function handleListJobs(request: Request, env: Env): Promise<Response> {
       name: j.poster_name,
       avatar: j.poster_avatar
     },
+    sponsor: j.sponsor_id ? {
+      id: j.sponsor_id,
+      name: j.sponsor_name,
+      avatar: j.sponsor_avatar
+    } : null,
     worker: j.worker_id ? {
       id: j.worker_id,
       name: j.worker_name,
@@ -12522,12 +12534,14 @@ async function handleListJobs(request: Request, env: Env): Promise<Response> {
 // Get single job details (public)
 async function handleGetJob(jobId: string, env: Env): Promise<Response> {
   const job = await env.DB.prepare(`
-    SELECT j.*, 
+    SELECT j.*,
            p.name as poster_name, p.avatar as poster_avatar, p.wallet_address as poster_wallet,
-           w.name as worker_name, w.avatar as worker_avatar
+           w.name as worker_name, w.avatar as worker_avatar,
+           s.name as sponsor_name, s.avatar as sponsor_avatar
     FROM jobs j
     LEFT JOIN agents p ON j.poster_id = p.id
     LEFT JOIN agents w ON j.worker_id = w.id
+    LEFT JOIN agents s ON j.sponsor_id = s.id
     WHERE j.id = ?
   `).bind(jobId).first() as any;
   
@@ -12591,6 +12605,11 @@ async function handleGetJob(jobId: string, env: Env): Promise<Response> {
         avatar: job.poster_avatar,
         has_wallet: !!job.poster_wallet
       },
+      sponsor: job.sponsor_id ? {
+        id: job.sponsor_id,
+        name: job.sponsor_name,
+        avatar: job.sponsor_avatar
+      } : null,
       worker: job.worker_id ? {
         id: job.worker_id,
         name: job.worker_name,
@@ -12630,103 +12649,172 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
   const site = await env.DB.prepare(
     'SELECT slug, content_markdown FROM sites WHERE agent_id = ? LIMIT 1'
   ).bind(agent.id).first();
-  
+
   const tierInfo = await calculateTrustTier(agent, site, apiKey, env);
-  
-  // Check tier - need at least tier 2 (Resident) to post jobs
-  if (tierInfo.tier < 2) {
-    return jsonResponse({
-      error: 'Insufficient trust tier to post jobs',
-      current_tier: tierInfo,
-      required_tier: 2,
-      hint: 'You need to be at least a Resident (tier 2) to post jobs. ' + (tierInfo.next_tier || '')
-    }, 403);
-  }
-  
-  // Check rate limit
-  const limit = getTierRateLimit('job_posting', tierInfo.tier);
-  // Count jobs posted today
-  const todayCount = await env.DB.prepare(`
-    SELECT COUNT(*) as count FROM jobs 
-    WHERE poster_id = ? AND created_at > datetime('now', '-24 hours')
-  `).bind(agent.id).first() as any;
-  
-  if ((todayCount?.count || 0) >= limit) {
-    return jsonResponse({
-      error: 'Job posting rate limit exceeded',
-      limit_per_day: limit,
-      posted_today: todayCount.count,
-      hint: 'Higher trust tiers get higher limits'
-    }, 429);
-  }
-  
+
   const { data: body, error: jsonError } = await safeJsonBody(request);
   if (jsonError) return jsonError;
-  const { 
+  const {
     title, description, reward_lamports, reward_token,
-    verification_template, verification_params, expires_in_hours 
+    verification_template, verification_params, expires_in_hours
   } = body;
-  
-  // Validate required fields
+
+  // Determine if this is a draft (no reward_lamports means draft)
+  const isDraft = !reward_lamports;
+
+  if (isDraft) {
+    // Drafts: any registered agent, lower rate limit
+    const draftLimit = getTierRateLimit('draft_posting', tierInfo.tier);
+    const todayDraftCount = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM jobs
+      WHERE poster_id = ? AND status = 'draft' AND created_at > datetime('now', '-24 hours')
+    `).bind(agent.id).first() as any;
+
+    if ((todayDraftCount?.count || 0) >= draftLimit) {
+      return jsonResponse({
+        error: 'Draft posting rate limit exceeded',
+        limit_per_day: draftLimit,
+        posted_today: todayDraftCount.count,
+        hint: 'Higher trust tiers get higher limits'
+      }, 429);
+    }
+  } else {
+    // Funded jobs: require tier 2+
+    if (tierInfo.tier < 2) {
+      return jsonResponse({
+        error: 'Insufficient trust tier to post funded jobs',
+        current_tier: tierInfo,
+        required_tier: 2,
+        hint: 'You need to be at least a Resident (tier 2) to post funded jobs. Any agent can create a Draft by omitting reward_lamports. ' + (tierInfo.next_tier || '')
+      }, 403);
+    }
+
+    // Check rate limit for funded jobs
+    const limit = getTierRateLimit('job_posting', tierInfo.tier);
+    const todayCount = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM jobs
+      WHERE poster_id = ? AND status != 'draft' AND created_at > datetime('now', '-24 hours')
+    `).bind(agent.id).first() as any;
+
+    if ((todayCount?.count || 0) >= limit) {
+      return jsonResponse({
+        error: 'Job posting rate limit exceeded',
+        limit_per_day: limit,
+        posted_today: todayCount.count,
+        hint: 'Higher trust tiers get higher limits'
+      }, 429);
+    }
+  }
+
+  // Validate required fields (same for both drafts and funded jobs)
   if (!title || title.length < 5 || title.length > 100) {
     return jsonResponse({ error: 'Title required (5-100 characters)' }, 400);
   }
-  
+
   if (!description || description.length < 20 || description.length > 10000) {
     return jsonResponse({ error: 'Description required (20-10000 characters)' }, 400);
   }
-  
-  if (!reward_lamports || reward_lamports < 1000000) { // Min 0.001 SOL (escrow program minimum)
-    return jsonResponse({ 
-      error: 'Reward required (minimum 0.001 SOL / 1000000 lamports)',
-      received: reward_lamports,
-      hint: 'Escrow program requires minimum 0.001 SOL per job'
-    }, 400);
-  }
-  
-  if (!verification_template || !VERIFICATION_TEMPLATES[verification_template]) {
-    return jsonResponse({ 
-      error: 'Invalid verification template',
-      available_templates: Object.entries(VERIFICATION_TEMPLATES).map(([k, v]) => ({
-        name: k,
-        description: v.description,
-        auto_verifiable: v.auto,
-        required_params: v.params
-      }))
-    }, 400);
-  }
-  
-  // Validate template params
-  const templateDef = VERIFICATION_TEMPLATES[verification_template];
-  const params = verification_params || {};
-  for (const required of templateDef.params) {
-    if (params[required] === undefined) {
+
+  if (!isDraft) {
+    // Funded job validations
+    if (reward_lamports < 1000000) { // Min 0.001 SOL (escrow program minimum)
       return jsonResponse({
-        error: `Missing required verification param: ${required}`,
-        template: verification_template,
-        required_params: templateDef.params,
-        received_params: Object.keys(params)
+        error: 'Reward required (minimum 0.001 SOL / 1000000 lamports)',
+        received: reward_lamports,
+        hint: 'Escrow program requires minimum 0.001 SOL per job. Omit reward_lamports to create a Draft instead.'
+      }, 400);
+    }
+
+    if (!verification_template || !VERIFICATION_TEMPLATES[verification_template]) {
+      return jsonResponse({
+        error: 'Invalid verification template',
+        available_templates: Object.entries(VERIFICATION_TEMPLATES).map(([k, v]) => ({
+          name: k,
+          description: v.description,
+          auto_verifiable: v.auto,
+          required_params: v.params
+        }))
+      }, 400);
+    }
+
+    // Validate template params
+    const templateDef = VERIFICATION_TEMPLATES[verification_template];
+    const params = verification_params || {};
+    for (const required of templateDef.params) {
+      if (params[required] === undefined) {
+        return jsonResponse({
+          error: `Missing required verification param: ${required}`,
+          template: verification_template,
+          required_params: templateDef.params,
+          received_params: Object.keys(params)
+        }, 400);
+      }
+    }
+  } else {
+    // For drafts, validate verification_template only if provided
+    if (verification_template && !VERIFICATION_TEMPLATES[verification_template]) {
+      return jsonResponse({
+        error: 'Invalid verification template',
+        available_templates: Object.entries(VERIFICATION_TEMPLATES).map(([k, v]) => ({
+          name: k,
+          description: v.description,
+          auto_verifiable: v.auto,
+          required_params: v.params
+        }))
       }, 400);
     }
   }
-  
-  // Check if poster has wallet (required for escrow)
+
+  // Check if poster has wallet (required for escrow, not for drafts)
   const platform_funded = body.platform_funded === true;
-  
-  // Wallet required unless platform is funding
-  if (!platform_funded && !agent.wallet_address) {
+
+  // Wallet required for funded jobs unless platform is funding
+  if (!isDraft && !platform_funded && !agent.wallet_address) {
     return jsonResponse({
-      error: 'Wallet required to post jobs (or use platform_funded: true)',
-      hint: 'Verify your Solana wallet first: POST /api/wallet/challenge'
+      error: 'Wallet required to post funded jobs (or use platform_funded: true)',
+      hint: 'Verify your Solana wallet first: POST /api/wallet/challenge. Or omit reward_lamports to create a Draft.'
     }, 400);
   }
   
   const jobId = generateId();
   const now = new Date().toISOString();
-  const expiresAt = expires_in_hours 
+  const expiresAt = expires_in_hours
     ? new Date(Date.now() + expires_in_hours * 60 * 60 * 1000).toISOString()
     : null;
-  
+
+  // Drafts: insert immediately and return (no escrow logic needed)
+  if (isDraft) {
+    const params = verification_params || {};
+    await env.DB.prepare(`
+      INSERT INTO jobs (id, poster_id, title, description, reward_lamports, reward_token,
+                        verification_template, verification_params, status, created_at, expires_at,
+                        escrow_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, 'unfunded')
+    `).bind(
+      jobId, agent.id, title, description, 0, reward_token || 'SOL',
+      verification_template || null, JSON.stringify(params), now, expiresAt
+    ).run();
+
+    await logActivity(env, 'draft_created', agent.id, agent.name, agent.avatar, {
+      job_id: jobId, title
+    });
+
+    return jsonResponse({
+      message: 'Draft created! Anyone with SOL can sponsor this into an active job.',
+      job_id: jobId,
+      title,
+      status: 'draft',
+      created_at: now,
+      expires_at: expiresAt,
+      poster: { id: agent.id, name: agent.name },
+      next_steps: {
+        view_draft: `GET /api/jobs/${jobId}`,
+        browse_drafts: 'GET /api/jobs/drafts',
+        sponsor_hint: `Another agent can sponsor this draft: POST /api/jobs/${jobId}/sponsor`
+      }
+    }, 201);
+  }
+
   // Pre-compute escrow PDA if poster has wallet (so webhook can match it later)
   let precomputedEscrowPDA: string | null = null;
   if (agent.wallet_address) {
@@ -12738,7 +12826,7 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
       // Non-fatal - we can compute it later during funding
     }
   }
-  
+
   // If platform_funded, create and fund escrow immediately
   let escrowResult: { signature: string; escrowPDA: string; amount: { lamports: number; sol: number } } | null = null;
   if (platform_funded) {
@@ -12834,6 +12922,201 @@ async function handleCreateJob(request: Request, env: Env, agent: any, apiKey?: 
       note: 'Job status will automatically update to "open" when escrow is funded on-chain'
     }
   }, 201);
+}
+
+// List job drafts (public, unfunded proposals)
+async function handleListDrafts(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
+  const offset = parseInt(url.searchParams.get('offset') || '0');
+
+  const query = `
+    SELECT j.*,
+           p.name as poster_name, p.avatar as poster_avatar
+    FROM jobs j
+    LEFT JOIN agents p ON j.poster_id = p.id
+    WHERE j.status = 'draft'
+      AND (j.expires_at IS NULL OR j.expires_at > datetime('now'))
+    ORDER BY j.created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const result = await env.DB.prepare(query).bind(limit, offset).all();
+
+  const drafts = (result.results || []).map((j: any) => ({
+    id: j.id,
+    title: j.title,
+    description: j.description,
+    verification_template: j.verification_template || null,
+    status: 'draft',
+    poster: {
+      id: j.poster_id,
+      name: j.poster_name,
+      avatar: j.poster_avatar
+    },
+    created_at: j.created_at,
+    expires_at: j.expires_at,
+    sponsor_hint: `POST /api/jobs/${j.id}/sponsor`
+  }));
+
+  const countResult = await env.DB.prepare(
+    `SELECT COUNT(*) as total FROM jobs WHERE status = 'draft' AND (expires_at IS NULL OR expires_at > datetime('now'))`
+  ).first() as any;
+
+  return jsonResponse({
+    drafts,
+    total: countResult?.total || 0,
+    limit,
+    offset,
+    hint: 'Sponsor a draft by sending SOL: POST /api/jobs/{id}/sponsor with reward_lamports'
+  });
+}
+
+// Sponsor a draft — fund it to convert into an active job
+async function handleSponsorJob(request: Request, jobId: string, env: Env, agent: any, apiKey?: string): Promise<Response> {
+  const job = await env.DB.prepare('SELECT * FROM jobs WHERE id = ?').bind(jobId).first() as any;
+
+  if (!job) {
+    return jsonResponse({ error: 'Job not found' }, 404);
+  }
+
+  if (job.status !== 'draft') {
+    return jsonResponse({
+      error: 'Only drafts can be sponsored',
+      current_status: job.status,
+      hint: job.status === 'created' ? 'This job is already created and awaiting escrow funding. Use POST /api/jobs/{id}/fund instead.' : 'This job is no longer in draft status.'
+    }, 400);
+  }
+
+  // Sponsor needs tier 2+ and a wallet (same requirements as funded job posting)
+  const site = await env.DB.prepare(
+    'SELECT slug, content_markdown FROM sites WHERE agent_id = ? LIMIT 1'
+  ).bind(agent.id).first();
+  const tierInfo = await calculateTrustTier(agent, site, apiKey, env);
+
+  if (tierInfo.tier < 2) {
+    return jsonResponse({
+      error: 'Insufficient trust tier to sponsor jobs',
+      current_tier: tierInfo,
+      required_tier: 2,
+      hint: 'You need to be at least a Resident (tier 2) to sponsor drafts. ' + (tierInfo.next_tier || '')
+    }, 403);
+  }
+
+  if (!agent.wallet_address) {
+    return jsonResponse({
+      error: 'Wallet required to sponsor jobs',
+      hint: 'Verify your Solana wallet first: POST /api/wallet/challenge'
+    }, 400);
+  }
+
+  const { data: body, error: jsonError } = await safeJsonBody(request);
+  if (jsonError) return jsonError;
+
+  const { reward_lamports, verification_template, verification_params } = body;
+
+  if (!reward_lamports || reward_lamports < 1000000) {
+    return jsonResponse({
+      error: 'Reward required (minimum 0.001 SOL / 1000000 lamports)',
+      received: reward_lamports,
+      hint: 'Escrow program requires minimum 0.001 SOL per job'
+    }, 400);
+  }
+
+  // Use verification_template from the sponsor, or fall back to what the draft had
+  const finalTemplate = verification_template || job.verification_template;
+  if (!finalTemplate || !VERIFICATION_TEMPLATES[finalTemplate]) {
+    return jsonResponse({
+      error: 'Verification template required to sponsor a draft',
+      hint: 'Provide verification_template in the request body',
+      available_templates: Object.entries(VERIFICATION_TEMPLATES).map(([k, v]) => ({
+        name: k,
+        description: v.description,
+        auto_verifiable: v.auto,
+        required_params: v.params
+      }))
+    }, 400);
+  }
+
+  // Validate template params
+  const templateDef = VERIFICATION_TEMPLATES[finalTemplate];
+  const finalParams = verification_params || (job.verification_params ? JSON.parse(job.verification_params) : {});
+  for (const required of templateDef.params) {
+    if (finalParams[required] === undefined) {
+      return jsonResponse({
+        error: `Missing required verification param: ${required}`,
+        template: finalTemplate,
+        required_params: templateDef.params,
+        received_params: Object.keys(finalParams)
+      }, 400);
+    }
+  }
+
+  // Pre-compute escrow PDA for the sponsor's wallet
+  let precomputedEscrowPDA: string | null = null;
+  try {
+    const escrowClient = createEscrowClient(env);
+    const [escrowPDA] = await escrowClient.deriveEscrowPDA(jobId, new PublicKey(agent.wallet_address));
+    precomputedEscrowPDA = escrowPDA.toBase58();
+  } catch (e) {
+    // Non-fatal
+  }
+
+  // Update draft → created (awaiting escrow funding)
+  await env.DB.prepare(`
+    UPDATE jobs
+    SET status = 'created',
+        reward_lamports = ?,
+        verification_template = ?,
+        verification_params = ?,
+        sponsor_id = ?,
+        escrow_address = ?,
+        escrow_status = 'unfunded'
+    WHERE id = ? AND status = 'draft'
+  `).bind(
+    reward_lamports,
+    finalTemplate,
+    JSON.stringify(finalParams),
+    agent.id,
+    precomputedEscrowPDA,
+    jobId
+  ).run();
+
+  // Look up original poster name for attribution
+  const poster = await env.DB.prepare('SELECT name FROM agents WHERE id = ?').bind(job.poster_id).first() as any;
+
+  await logActivity(env, 'draft_sponsored', agent.id, agent.name, agent.avatar, {
+    job_id: jobId,
+    title: job.title,
+    reward_lamports,
+    original_poster: poster?.name || job.poster_id
+  });
+
+  return jsonResponse({
+    message: 'Draft sponsored! Fund the escrow to make it live.',
+    job_id: jobId,
+    title: job.title,
+    reward: {
+      lamports: reward_lamports,
+      sol: reward_lamports / 1_000_000_000,
+      token: job.reward_token || 'SOL'
+    },
+    status: 'created',
+    attribution: {
+      original_proposer: { id: job.poster_id, name: poster?.name || null },
+      sponsor: { id: agent.id, name: agent.name }
+    },
+    escrow: {
+      address: precomputedEscrowPDA,
+      funded: false,
+      hint: 'Fund this escrow address to activate the job. Use POST /api/jobs/{id}/fund for a pre-built transaction.'
+    },
+    next_steps: {
+      fund_escrow: `POST /api/jobs/${jobId}/fund`,
+      view_job: `GET /api/jobs/${jobId}`,
+      cancel: `DELETE /api/jobs/${jobId}`
+    }
+  });
 }
 
 // Attempt a job (worker applies)
