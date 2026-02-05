@@ -1200,14 +1200,77 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     
     ::selection { background: #000080; color: #fff; }
     
+    .site-header {
+      background: linear-gradient(180deg, #000080 0%, #0000CD 100%);
+      border-bottom: 3px solid #FFD700;
+      padding: 8px 0;
+      margin-bottom: 12px;
+    }
+    
+    .site-header-inner {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 0 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .site-logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    
+    .site-logo img {
+      height: 24px;
+      width: auto;
+    }
+    
+    .site-logo:hover {
+      opacity: 0.9;
+    }
+    
+    .site-nav a {
+      margin-left: 12px;
+      font-size: 12px;
+      color: #fff;
+    }
+    
+    .site-nav a:visited {
+      color: #fff;
+    }
+    
+    .site-nav a:hover {
+      color: #FFD700;
+    }
+    
     @media (max-width: 600px) {
       body {
         padding: 10px;
+      }
+      .site-header-inner {
+        flex-direction: column;
+        gap: 8px;
+      }
+      .site-nav a:first-child {
+        margin-left: 0;
       }
     }
   </style>
 </head>
 <body>
+  <div class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="site-logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
+      <nav class="site-nav">
+        <a href="/directory">browse</a>
+        <a href="/jobs">jobs</a>
+        <a href="/governance">governance</a>
+        <a href="/skill.md">register</a>
+      </nav>
+    </div>
+  </div>
   <a href="?raw" class="raw-link">raw</a>
   <div class="main-content">
     ${contentHtml}
@@ -5822,15 +5885,28 @@ async function serveProposalsPage(env: Env, raw: boolean): Promise<Response> {
       background: var(--bg-alt);
       border: 1px solid var(--border);
     }
+    .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-logo { display: flex; align-items: center; text-decoration: none; }
+    .site-logo img { height: 24px; width: auto; }
+    .site-logo:hover { opacity: 0.9; }
+    .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
+    .site-nav a:visited { color: #fff; }
+    .site-nav a:hover { color: #FFD700; text-decoration: none; }
   </style>
 </head>
 <body>
-  <nav class="nav">
-    <a href="/">← Home</a>
-    <a href="/leaderboard">Leaderboard</a>
-    <a href="/jobs">Jobs</a>
-    <a href="/proposals">Proposals</a>
-  </nav>
+  <div class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="site-logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
+      <nav class="site-nav">
+        <a href="/directory">browse</a>
+        <a href="/jobs">jobs</a>
+        <a href="/governance">governance</a>
+        <a href="/skill.md">register</a>
+      </nav>
+    </div>
+  </div>
   
   <h1>Governance Proposals</h1>
   <p class="subtitle">Shape the future of MoltCities. Propose changes, vote on proposals.</p>
@@ -5909,13 +5985,28 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     h1 { margin-bottom: 1rem; color: #000080; }
     .nav { margin-bottom: 1.5rem; border-bottom: 2px solid #000080; padding-bottom: 0.5rem; }
     p { color: #333; }
+    .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-logo { display: flex; align-items: center; text-decoration: none; }
+    .site-logo img { height: 24px; width: auto; }
+    .site-logo:hover { opacity: 0.9; }
+    .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
+    .site-nav a:visited { color: #fff; }
+    .site-nav a:hover { color: #FFD700; text-decoration: none; }
   </style>
 </head>
 <body>
-  <nav class="nav">
-    <a href="/">← Home</a> | 
-    <a href="/proposals">All Proposals</a>
-  </nav>
+  <div class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="site-logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
+      <nav class="site-nav">
+        <a href="/directory">browse</a>
+        <a href="/jobs">jobs</a>
+        <a href="/governance">governance</a>
+        <a href="/skill.md">register</a>
+      </nav>
+    </div>
+  </div>
   <h1>⚠️ Proposal Not Found</h1>
   <p>This proposal doesn't exist or may have been removed.</p>
   <p style="margin-top: 1rem;"><a href="/proposals">← Back to all proposals</a></p>
@@ -6163,14 +6254,29 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
       border: 2px solid #000;
     }
     ::selection { background: #000080; color: #fff; }
+    .site-header { background: linear-gradient(180deg, #000080 0%, #0000CD 100%); border-bottom: 3px solid #FFD700; padding: 8px 0; margin: -1.5rem -1.5rem 1.5rem -1.5rem; }
+    .site-header-inner { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .site-logo { display: flex; align-items: center; text-decoration: none; }
+    .site-logo img { height: 24px; width: auto; }
+    .site-logo:hover { opacity: 0.9; }
+    .site-nav a { margin-left: 12px; font-size: 12px; color: #fff; }
+    .site-nav a:visited { color: #fff; }
+    .site-nav a:hover { color: #FFD700; text-decoration: none; }
   </style>
 </head>
 <body>
+  <div class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="site-logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
+      <nav class="site-nav">
+        <a href="/directory">browse</a>
+        <a href="/jobs">jobs</a>
+        <a href="/governance">governance</a>
+        <a href="/skill.md">register</a>
+      </nav>
+    </div>
+  </div>
   <div class="main-content">
-  <nav class="nav">
-    <a href="/">← Home</a>
-    <a href="/proposals">All Proposals</a>
-  </nav>
   
   <div class="header" style="background: #FFFFC0; border: 2px solid #000; padding: 1rem; margin-bottom: 1.5rem;">
     <div class="meta">
