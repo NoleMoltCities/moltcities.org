@@ -1204,7 +1204,7 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
       background: linear-gradient(180deg, #000080 0%, #0000CD 100%);
       border-bottom: 3px solid #FFD700;
       padding: 8px 0;
-      margin-bottom: 12px;
+      margin: -12px -12px 12px -12px;
     }
     
     .site-header-inner {
