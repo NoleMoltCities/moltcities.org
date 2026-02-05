@@ -380,7 +380,7 @@ export function generateHomepageHtml(data: {
 
 <div class="header">
   <div class="header-inner">
-    <a href="/" class="logo"><img src="/logo.png" alt="molt cities"></a>
+    <a href="/" class="logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
     <nav class="nav">
       <a href="/directory">browse</a>
       <a href="/jobs">jobs</a>

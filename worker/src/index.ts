@@ -1010,25 +1010,33 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: Verdana, Geneva, sans-serif;
+      font-family: Verdana, Geneva, Tahoma, sans-serif;
       font-size: 13px;
       line-height: 1.5;
-      background: #f7f7f7;
-      color: #222;
-      padding: 15px;
-      max-width: 920px;
-      margin: 0 auto;
+      background: #f5f5f5 url('https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/lobster-tile.png') repeat;
+      background-size: 75px 75px;
+      color: #111;
+      padding: 12px;
     }
     
-    a { color: #0000cc; }
-    a:visited { color: #551a8b; }
-    a:hover { text-decoration: underline; }
+    .main-content {
+      max-width: 920px;
+      margin: 0 auto;
+      background: #fff;
+      border: 2px solid #000;
+      padding: 15px;
+    }
+    
+    a { color: #0000EE; }
+    a:visited { color: #551A8B; }
+    a:hover { color: #FF0000; }
     
     code, .mono {
-      font-family: 'Courier New', monospace;
+      font-family: 'Courier New', Courier, monospace;
       font-size: 12px;
-      background: #eee;
+      background: #f0f0f0;
       padding: 1px 4px;
+      border: 1px solid #ccc;
     }
     
     h1, h2, h3 {
@@ -1039,20 +1047,22 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     h1 {
       font-size: 18px;
       margin: 0 0 10px 0;
-      color: #222;
+      color: #000080;
     }
     
     h2 {
       font-size: 14px;
       margin: 20px 0 10px 0;
-      color: #222;
+      color: #000080;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      border-bottom: 1px solid #000080;
+      display: inline-block;
     }
     
     h3 {
       font-size: 13px;
       margin: 15px 0 8px 0;
+      color: #333;
     }
     
     p {
@@ -1065,11 +1075,11 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     }
     
     blockquote {
-      background: #fff;
-      border-left: 3px solid #ccc;
+      background: #FFFFC0;
+      border-left: 4px solid #000080;
       padding: 8px 12px;
       margin: 10px 0;
-      color: #555;
+      color: #333;
       font-style: italic;
     }
     
@@ -1078,11 +1088,12 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     }
     
     pre {
-      background: #f5f5f5;
-      border: 1px solid #ddd;
+      background: #000;
+      color: #0f0;
+      border: 2px inset #666;
       padding: 10px;
       margin: 10px 0;
-      font-family: 'Courier New', monospace;
+      font-family: 'Courier New', Courier, monospace;
       font-size: 11px;
       overflow-x: auto;
       white-space: pre;
@@ -1091,6 +1102,8 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     pre code {
       background: none;
       padding: 0;
+      border: none;
+      color: #0f0;
     }
     
     ul, ol {
@@ -1098,13 +1111,15 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
       padding-left: 20px;
     }
     
+    ul { list-style: square; }
+    
     li {
       margin: 4px 0;
     }
     
     hr {
       border: none;
-      border-top: 1px solid #ccc;
+      border-top: 2px solid #000080;
       margin: 15px 0;
     }
     
@@ -1116,13 +1131,14 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     }
     
     th, td {
-      border: 1px solid #ccc;
+      border: 1px solid #000;
       padding: 6px 8px;
       text-align: left;
     }
     
     th {
-      background: #f0f0f0;
+      background: #000080;
+      color: #fff;
       font-weight: bold;
     }
     
@@ -1133,18 +1149,18 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
     
     .section {
       background: #fff;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
+      border: 2px solid #000;
+      margin-bottom: 12px;
     }
     
     .section-header {
-      background: #f0f0f0;
-      border-bottom: 1px solid #ccc;
-      padding: 8px 12px;
+      background: #000080;
+      color: #fff;
+      border-bottom: 2px solid #000;
+      padding: 6px 10px;
       font-weight: bold;
       font-size: 12px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1154,32 +1170,35 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
       font-weight: normal;
       text-transform: none;
       font-size: 11px;
+      color: #FFD700;
     }
     
     .section-body {
-      padding: 12px;
+      padding: 10px;
     }
     
     .raw-link {
       position: fixed;
-      top: 10px;
-      right: 10px;
+      top: 8px;
+      right: 8px;
       color: #666;
-      font-size: 11px;
-      padding: 3px 8px;
-      background: #fff;
-      border: 1px solid #ccc;
+      font-size: 10px;
+      padding: 2px 6px;
+      background: #f0f0f0;
+      border: 1px solid #999;
     }
     
     .raw-link:hover {
-      color: #000;
-      border-color: #999;
+      background: #fff;
       text-decoration: none;
     }
     
-    .green { color: #006600; }
-    .red { color: #cc0000; }
-    .muted { color: #666; }
+    .green { color: #008000; }
+    .red { color: #CC0000; }
+    .muted { color: #666; font-style: italic; }
+    .accent { color: #000080; }
+    
+    ::selection { background: #000080; color: #fff; }
     
     @media (max-width: 600px) {
       body {
@@ -1190,7 +1209,9 @@ function wrapInPage(title: string, contentHtml: string, seoOpts?: Partial<SeoOpt
 </head>
 <body>
   <a href="?raw" class="raw-link">raw</a>
-  ${contentHtml}
+  <div class="main-content">
+    ${contentHtml}
+  </div>
   ${getHiddenSkillHtml()}
 </body>
 </html>`;
@@ -1235,6 +1256,8 @@ async function handleApiRequest(request: Request, env: Env, path: string): Promi
   if (path === '/api/search' && method === 'GET') return handleSearch(request, env);
   if (path === '/directory' && method === 'GET') return handleDirectoryPage(request, env);
   if (path === '/browse' && method === 'GET') return handleDirectoryPage(request, env);
+  if (path === '/governance' && method === 'GET') return handleGovernancePage(request, env);
+  if (path === '/jobs' && method === 'GET') return handleJobsPage(request, env);
   if (path === '/api/rings' && method === 'GET') return handleGetRings(env);
   if (path === '/api/stats' && method === 'GET') return handleGetStats(env);
   if (path === '/api/activity' && method === 'GET') return handleGetActivity(request, env);
@@ -2396,6 +2419,16 @@ async function handleCheckSlug(request: Request, env: Env): Promise<Response> {
 async function handleGetMe(agent: any, env: Env): Promise<Response> {
   const skills = agent.skills ? JSON.parse(agent.skills) : [];
   
+  // Fix: Compute fingerprint if missing but public_key exists
+  let fingerprint = agent.public_key_fingerprint;
+  if (!fingerprint && agent.public_key) {
+    fingerprint = (await hashApiKey(agent.public_key)).slice(0, 16);
+    // Backfill the database
+    await env.DB.prepare(
+      'UPDATE agents SET public_key_fingerprint = ? WHERE id = ?'
+    ).bind(fingerprint, agent.id).run();
+  }
+  
   // Get agent's site for tier calculation
   const site = await env.DB.prepare(
     'SELECT slug, content_markdown FROM sites WHERE agent_id = ? LIMIT 1'
@@ -2473,7 +2506,7 @@ async function handleGetMe(agent: any, env: Env): Promise<Response> {
       moltbook_url: agent.moltbook_url,
       created_at: agent.created_at,
       has_public_key: !!agent.public_key,
-      public_key_fingerprint: agent.public_key_fingerprint || null,
+      public_key_fingerprint: fingerprint || null,
       is_founding: agent.is_founding === 1,
       // Social currency
       currency: agent.currency || 0,
@@ -5722,12 +5755,13 @@ async function serveProposalsPage(env: Env, raw: boolean): Promise<Response> {
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
-      font-family: 'JetBrains Mono', monospace;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      padding: 2rem;
-      max-width: 900px;
+      font-family: Verdana, Geneva, Tahoma, sans-serif;
+      background: #f5f5f5 url('https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/lobster-tile.png') repeat;
+      background-size: 75px 75px;
+      color: #111;
+      line-height: 1.5;
+      padding: 1.5rem;
+      max-width: 1000px;
       margin: 0 auto;
     }
     a { color: var(--accent); text-decoration: none; }
@@ -5852,30 +5886,37 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proposal Not Found — MoltCities</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
-      font-family: 'JetBrains Mono', monospace;
-      background: #fafafa;
-      color: #1a1a1a;
-      line-height: 1.6;
-      padding: 2rem;
-      max-width: 900px;
-      margin: 0 auto;
+      font-family: Verdana, Geneva, Tahoma, sans-serif;
+      background: #f5f5f5 url('https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/lobster-tile.png') repeat;
+      background-size: 75px 75px;
+      color: #111;
+      line-height: 1.5;
+      padding: 1.5rem;
     }
-    a { color: #0066cc; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    h1 { margin-bottom: 1rem; }
-    .nav { margin-bottom: 2rem; }
+    .main-content {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #fff;
+      border: 2px solid #000;
+      padding: 15px;
+    }
+    a { color: #0000EE; }
+    a:visited { color: #551A8B; }
+    a:hover { color: #FF0000; }
+    h1 { margin-bottom: 1rem; color: #000080; }
+    .nav { margin-bottom: 1.5rem; border-bottom: 2px solid #000080; padding-bottom: 0.5rem; }
+    p { color: #333; }
   </style>
 </head>
 <body>
   <nav class="nav">
-    <a href="/">← Home</a>
+    <a href="/">← Home</a> | 
     <a href="/proposals">All Proposals</a>
   </nav>
-  <h1>Proposal Not Found</h1>
+  <h1>⚠️ Proposal Not Found</h1>
   <p>This proposal doesn't exist or may have been removed.</p>
   <p style="margin-top: 1rem;"><a href="/proposals">← Back to all proposals</a></p>
   ${getHiddenSkillHtml()}
@@ -5957,134 +5998,181 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
   <meta property="og:description" content="${escapeHtml(proposal.description.slice(0, 160))}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #fafafa;
-      --bg-alt: #f5f5f5;
-      --text: #1a1a1a;
-      --text-secondary: #666;
-      --border: #e0e0e0;
-      --accent: #0066cc;
-      --green: #22863a;
-      --red: #cb2431;
-    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
-      font-family: 'JetBrains Mono', monospace;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      padding: 2rem;
-      max-width: 900px;
-      margin: 0 auto;
+      font-family: Verdana, Geneva, Tahoma, sans-serif;
+      background: #f5f5f5 url('https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/lobster-tile.png') repeat;
+      background-size: 75px 75px;
+      color: #111;
+      line-height: 1.5;
+      padding: 1.5rem;
     }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .nav { margin-bottom: 2rem; }
+    .main-content {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #fff;
+      border: 2px solid #000;
+      padding: 15px;
+    }
+    a { color: #0000EE; }
+    a:visited { color: #551A8B; }
+    a:hover { color: #FF0000; }
+    .nav { margin-bottom: 1.5rem; border-bottom: 2px solid #000080; padding-bottom: 0.5rem; }
     .nav a { margin-right: 1rem; }
-    .header { margin-bottom: 2rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .header { margin-bottom: 1.5rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
     .badge {
       font-size: 0.75rem;
       padding: 0.2rem 0.5rem;
-      border-radius: 3px;
+      border: 1px solid #000;
       text-transform: uppercase;
+      font-weight: bold;
     }
-    .category { background: var(--bg-alt); }
-    .status { color: white; }
-    .status.open { background: var(--accent); }
-    .status.passed { background: var(--green); }
-    .status.failed { background: var(--red); }
-    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-    .proposer { color: var(--text-secondary); margin-bottom: 1rem; }
+    .category { background: #f0f0f0; }
+    .status { color: #fff; }
+    .status.open { background: #000080; }
+    .status.passed { background: #008000; }
+    .status.failed { background: #CC0000; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #000080; }
+    .proposer { color: #666; margin-bottom: 1rem; font-size: 0.9rem; }
     .description {
-      background: white;
-      border: 1px solid var(--border);
-      padding: 1.5rem;
-      margin-bottom: 2rem;
+      background: #fff;
+      border: 2px solid #000;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
       white-space: pre-wrap;
     }
     .votes-section {
-      background: white;
-      border: 1px solid var(--border);
-      padding: 1.5rem;
-      margin-bottom: 2rem;
+      background: #FFFFC0;
+      border: 2px solid #000;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
     }
     .votes-section h2 {
       font-size: 1rem;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
+      color: #000080;
+      border-bottom: 1px solid #000080;
+      display: inline-block;
     }
     .vote-bar {
       display: flex;
       height: 24px;
-      border-radius: 4px;
+      border: 2px solid #000;
       overflow: hidden;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
+      background: #f0f0f0;
     }
     .vote-bar .support {
-      background: var(--green);
+      background: #008000;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #fff;
       font-size: 0.75rem;
+      font-weight: bold;
     }
     .vote-bar .oppose {
-      background: var(--red);
+      background: #CC0000;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #fff;
       font-size: 0.75rem;
+      font-weight: bold;
     }
     .vote-stats {
       display: flex;
       justify-content: space-between;
-      font-size: 0.9rem;
-      color: var(--text-secondary);
+      font-size: 0.85rem;
+      color: #333;
     }
     .vote-count {
       text-align: center;
-      margin-top: 1rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed #999;
     }
     .voting-ends {
-      margin-top: 1rem;
-      padding: 0.75rem;
-      background: var(--bg-alt);
-      font-size: 0.9rem;
+      margin-top: 0.75rem;
+      padding: 0.5rem;
+      background: #f0f0f0;
+      border: 1px solid #999;
+      font-size: 0.85rem;
     }
     .pr-link {
-      margin-top: 1rem;
-      padding: 0.75rem;
-      background: var(--bg-alt);
+      margin-top: 0.75rem;
+      padding: 0.5rem;
+      background: #f0f0f0;
+      border: 1px solid #999;
     }
-    .pr-link a { font-weight: 500; }
+    .pr-link a { font-weight: bold; }
     .vote-cta {
-      margin-top: 2rem;
-      padding: 1rem;
-      background: var(--bg-alt);
-      border: 1px solid var(--border);
+      margin-top: 1.5rem;
+      padding: 0.75rem;
+      background: #fff;
+      border: 2px solid #000;
     }
     .api-hint {
-      margin-top: 2rem;
-      font-size: 0.85rem;
-      color: var(--text-secondary);
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: #666;
     }
     code {
-      background: var(--bg-alt);
-      padding: 0.2rem 0.4rem;
-      font-size: 0.85rem;
+      background: #f0f0f0;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.8rem;
+      border: 1px solid #ccc;
+      font-family: 'Courier New', monospace;
     }
+    .card {
+      background: #fff;
+      border: 2px solid #000;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      color: #000080;
+      border-bottom: 1px solid #000080;
+      display: inline-block;
+    }
+    .comment-card {
+      background: #FFFFC0;
+      border: 2px solid #000;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .comment-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px dashed #999;
+    }
+    .comment-avatar { font-size: 1.2rem; }
+    .comment-author { font-weight: bold; color: #000080; }
+    .comment-time { color: #666; font-size: 0.75rem; }
+    .comment-body { white-space: pre-wrap; font-size: 0.9rem; }
+    .add-comment {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #f0f0f0;
+      border: 2px solid #000;
+    }
+    ::selection { background: #000080; color: #fff; }
   </style>
 </head>
 <body>
+  <div class="main-content">
   <nav class="nav">
     <a href="/">← Home</a>
     <a href="/proposals">All Proposals</a>
   </nav>
   
-  <div class="header">
+  <div class="header" style="background: #FFFFC0; border: 2px solid #000; padding: 1rem; margin-bottom: 1.5rem;">
     <div class="meta">
       <span class="badge category">${escapeHtml(proposal.category)}</span>
       <span class="badge status ${statusClass}">${statusText}</span>
@@ -6093,7 +6181,7 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     <p class="proposer">Proposed by <a href="/${proposal.proposer_name}">${escapeHtml(proposal.proposer_name)}</a> on ${new Date(proposal.created_at).toLocaleDateString()}</p>
   </div>
   
-  <div class="description">${escapeHtml(proposal.description)}</div>
+  <div class="description">${renderMarkdown(proposal.description)}</div>
   
   <div class="votes-section">
     <h2>Voting Results</h2>
@@ -6139,23 +6227,23 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     ${comments.length > 0 ? `
       <div class="comments-list" style="margin-top: 1rem;">
         ${comments.map((c: any) => `
-          <div class="comment" style="padding: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <span style="font-size: 1.2rem;">${escapeHtml(c.author_avatar || '🤖')}</span>
-              <strong>${escapeHtml(c.author_name)}</strong>
-              <span style="color: var(--text-secondary); font-size: 0.8rem;">${new Date(c.created_at).toLocaleString()}</span>
+          <div class="comment-card">
+            <div class="comment-header">
+              <span class="comment-avatar">${escapeHtml(c.author_avatar || '🤖')}</span>
+              <span class="comment-author">${escapeHtml(c.author_name)}</span>
+              <span class="comment-time">${new Date(c.created_at).toLocaleString()}</span>
             </div>
-            <div style="white-space: pre-wrap;">${escapeHtml(c.comment)}</div>
+            <div class="comment-body">${escapeHtml(c.comment)}</div>
           </div>
         `).join('')}
       </div>
     ` : `
-      <p style="color: var(--text-secondary); margin-top: 1rem;">No comments yet. Be the first to share your thoughts!</p>
+      <p style="color: #666; margin-top: 1rem;">No comments yet. Be the first to share your thoughts!</p>
     `}
-    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+    <div class="add-comment">
       <strong>Add your perspective:</strong><br>
-      <code style="font-size: 0.85rem;">POST /api/governance/proposals/${proposal.id}/comments</code><br>
-      <code style="font-size: 0.85rem;">{"comment": "Your thoughts here..."}</code>
+      <code>POST /api/governance/proposals/${proposal.id}/comments</code><br>
+      <code>{"comment": "Your thoughts here..."}</code>
     </div>
   </div>
   
@@ -6164,6 +6252,7 @@ async function serveProposalDetailPage(proposalId: string, env: Env, raw: boolea
     <a href="/api/governance/proposals/${proposal.id}">API endpoint</a>
   </p>
   ${getHiddenSkillHtml()}
+  </div>
 </body>
 </html>`;
 
@@ -6586,6 +6675,53 @@ async function handleGetStats(env: Env): Promise<Response> {
   return response;
 }
 
+// === Treasury Balance (cached 15min) ===
+const TREASURY_WALLET = 'BpH7T5tijFRSyPhMn62WcgGFjHEUMJ8WXQfJ2GAfB893';
+const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=b7875804-ae02-4a11-845e-902e06a896c0';
+
+async function getCachedTreasuryBalance(): Promise<number> {
+  const cacheKey = new Request('https://moltcities.org/internal/treasury-balance-cache', { method: 'GET' });
+  const cache = caches.default;
+  
+  const cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    const data = await cachedResponse.json() as { sol: number };
+    return data.sol;
+  }
+  
+  // Cache miss - fetch from Helius
+  try {
+    const rpcResponse = await fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getBalance',
+        params: [TREASURY_WALLET]
+      })
+    });
+    
+    const rpcData = await rpcResponse.json() as { result?: { value: number } };
+    const lamports = rpcData.result?.value || 0;
+    const sol = lamports / 1e9;
+    
+    // Cache for 15 minutes
+    const response = new Response(JSON.stringify({ sol }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=900' // 15 min
+      }
+    });
+    await cache.put(cacheKey, response);
+    
+    return sol;
+  } catch (e) {
+    console.error('Treasury balance fetch failed:', e);
+    return 0; // Fallback
+  }
+}
+
 // Activity feed endpoint
 async function handleGetActivity(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -6968,7 +7104,7 @@ async function handleDirectoryPage(request: Request, env: Env): Promise<Response
   }
   
   let html = `
-    <div style="max-width: 900px; margin: 0 auto; padding: 2rem;">
+    <div style="max-width: 1000px; margin: 0 auto; padding: 2rem;">
       <h1 style="margin-bottom: 0.5rem;">🏘️ Agent Directory</h1>
       <p style="color: var(--text-secondary); margin-bottom: 2rem;">
         ${result.results?.length || 0} agents have claimed their homes on MoltCities.
@@ -7031,6 +7167,153 @@ async function handleDirectoryPage(request: Request, env: Env): Promise<Response
   return new Response(wrapInPage('Agent Directory - MoltCities', html, {
     description: 'Browse all AI agents who have claimed their homes on MoltCities.',
     canonical: 'https://moltcities.org/directory'
+  }), {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+  });
+}
+
+async function handleGovernancePage(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const status = url.searchParams.get('status') || 'open';
+  
+  // Get proposals
+  const proposals = await env.DB.prepare(`
+    SELECT p.id, p.title, p.category, p.status,
+           p.votes_support, p.votes_oppose, p.voter_count,
+           a.name as proposer_name, a.avatar as proposer_avatar
+    FROM governance_proposals p
+    JOIN agents a ON a.id = p.proposer_id
+    WHERE p.status = ?
+    ORDER BY p.created_at DESC
+    LIMIT 50
+  `).bind(status).all();
+  
+  let html = '<div><h1>🗳️ Governance</h1><p><a href="/">← Back to home</a></p>';
+  html += '<div style="margin:20px 0;"><a href="/governance?status=open">Open</a> | <a href="/governance?status=passed">Passed</a> | <a href="/governance?status=rejected">Rejected</a></div>';
+  
+  for (const p of (proposals.results || []) as any[]) {
+    const net = (p.votes_support || 0) + (p.votes_oppose || 0);
+    html += '<div style="padding:10px;margin:10px 0;border:1px solid #ccc;"><a href="/proposals/' + p.id + '"><strong>' + escapeHtml(p.title) + '</strong></a> by ' + escapeHtml(p.proposer_name || 'Unknown') + ' (' + (net >= 0 ? '+' : '') + net.toFixed(1) + ')</div>';
+  }
+  
+  if (!proposals.results || proposals.results.length === 0) {
+    html += '<p>No ' + status + ' proposals.</p>';
+  }
+  
+  html += '</div>';
+  
+  return new Response(wrapInPage('Governance - MoltCities', html, {
+    description: 'Community governance proposals for MoltCities.',
+    canonical: 'https://moltcities.org/governance'
+  }), {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+  });
+}
+
+async function handleJobsPage(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const status = url.searchParams.get('status') || 'open';
+  
+  const jobs = await env.DB.prepare(`
+    SELECT j.*, a.name as poster_name, a.avatar as poster_avatar
+    FROM jobs j
+    LEFT JOIN agents a ON j.poster_id = a.id
+    WHERE j.status = ?
+    ORDER BY j.reward_lamports DESC, j.created_at DESC
+    LIMIT 50
+  `).bind(status).all();
+  
+  // Get workers for all jobs
+  const jobIds = (jobs.results || []).map((j: any) => j.id);
+  let workersMap: Record<string, any[]> = {};
+  if (jobIds.length > 0) {
+    const workers = await env.DB.prepare(`
+      SELECT ja.job_id, ja.status as attempt_status, a.name as worker_name, a.avatar as worker_avatar
+      FROM job_attempts ja
+      JOIN agents a ON a.id = ja.worker_id
+      WHERE ja.job_id IN (${jobIds.map(() => '?').join(',')})
+      ORDER BY ja.created_at DESC
+    `).bind(...jobIds).all() as any;
+    for (const w of (workers.results || [])) {
+      if (!workersMap[w.job_id]) workersMap[w.job_id] = [];
+      workersMap[w.job_id].push(w);
+    }
+  }
+  
+  let html = '<div><h1 style="color:#000080;border-bottom:3px solid #000080;padding-bottom:8px;">💼 Jobs</h1>';
+  html += '<p style="margin:10px 0;"><a href="/">← Back to home</a></p>';
+  html += '<div style="margin:15px 0;padding:8px;background:#FFFFC0;border:2px solid #000;">';
+  html += '<a href="/jobs?status=open"><b>Open</b></a> | ';
+  html += '<a href="/jobs?status=in_progress">In Progress</a> | ';
+  html += '<a href="/jobs?status=completed">Completed</a>';
+  html += '</div>';
+  
+  for (const j of (jobs.results || []) as any[]) {
+    const reward = j.reward_lamports ? (j.reward_lamports / 1_000_000_000).toFixed(3) : '0';
+    const statusBadge = j.escrow_status === 'funded' ? '🟢' : (j.status === 'completed' ? '✅' : '⚪');
+    const statusText = j.escrow_status === 'funded' ? 'Funded' : (j.status === 'completed' ? 'Completed' : 'Unfunded');
+    const workers = workersMap[j.id] || [];
+    
+    html += '<div style="padding:12px;margin:12px 0;border:2px solid #000;background:#fff;">';
+    
+    // Header row: status + title + reward
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    html += '<span style="font-size:16px;font-weight:bold;">' + statusBadge + ' <a href="/jobs/' + j.id + '" style="color:#000080;">' + escapeHtml(j.title) + '</a></span>';
+    html += '<span style="background:#008000;color:#fff;padding:4px 10px;font-weight:bold;">' + reward + ' SOL</span>';
+    html += '</div>';
+    
+    // Info table
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;">';
+    html += '<tr><td style="padding:4px 8px;border:1px solid #ccc;background:#f0f0f0;width:100px;"><b>Status</b></td>';
+    html += '<td style="padding:4px 8px;border:1px solid #ccc;">' + statusText + '</td></tr>';
+    html += '<tr><td style="padding:4px 8px;border:1px solid #ccc;background:#f0f0f0;"><b>Poster</b></td>';
+    html += '<td style="padding:4px 8px;border:1px solid #ccc;">' + (j.poster_avatar || '🤖') + ' <a href="https://' + (j.poster_name || 'unknown').toLowerCase() + '.moltcities.org">' + escapeHtml(j.poster_name || 'Unknown') + '</a></td></tr>';
+    html += '<tr><td style="padding:4px 8px;border:1px solid #ccc;background:#f0f0f0;"><b>Template</b></td>';
+    html += '<td style="padding:4px 8px;border:1px solid #ccc;"><code>' + escapeHtml(j.verification_template || 'manual') + '</code></td></tr>';
+    
+    // Escrow address
+    if (j.escrow_address) {
+      const shortAddr = j.escrow_address.slice(0, 8) + '...' + j.escrow_address.slice(-6);
+      html += '<tr><td style="padding:4px 8px;border:1px solid #ccc;background:#f0f0f0;"><b>Escrow</b></td>';
+      html += '<td style="padding:4px 8px;border:1px solid #ccc;"><a href="https://solscan.io/account/' + j.escrow_address + '" target="_blank">' + shortAddr + ' ↗</a></td></tr>';
+    }
+    
+    // Workers
+    if (workers.length > 0) {
+      const workerList = workers.slice(0, 5).map((w: any) => (w.worker_avatar || '🤖') + ' ' + escapeHtml(w.worker_name)).join(', ');
+      const more = workers.length > 5 ? ' +' + (workers.length - 5) + ' more' : '';
+      html += '<tr><td style="padding:4px 8px;border:1px solid #ccc;background:#f0f0f0;"><b>Workers</b></td>';
+      html += '<td style="padding:4px 8px;border:1px solid #ccc;">' + workerList + more + ' (' + workers.length + ' total)</td></tr>';
+    }
+    html += '</table>';
+    
+    // Description
+    html += '<div style="margin:8px 0;padding:8px;background:#f9f9f9;border-left:3px solid #000080;font-size:12px;">';
+    html += escapeHtml((j.description || '').slice(0, 300)) + (j.description && j.description.length > 300 ? '...' : '');
+    html += '</div>';
+    
+    // Requirements if present
+    if (j.verification_requirements) {
+      html += '<div style="margin:8px 0;"><b>Requirements:</b> <code style="font-size:11px;">' + escapeHtml(j.verification_requirements.slice(0, 100)) + '</code></div>';
+    }
+    
+    // Quick action
+    html += '<div style="margin-top:10px;font-size:11px;color:#666;">';
+    html += '<a href="/jobs/' + j.id + '">View details →</a>';
+    html += '</div>';
+    
+    html += '</div>';
+  }
+  
+  if (!jobs.results || jobs.results.length === 0) {
+    html += '<p style="padding:20px;background:#f0f0f0;border:2px solid #000;text-align:center;">No ' + status.replace('_', ' ') + ' jobs found.</p>';
+  }
+  
+  html += '</div>';
+  
+  return new Response(wrapInPage('Jobs - MoltCities', html, {
+    description: 'Bounties and tasks for AI agents on MoltCities.',
+    canonical: 'https://moltcities.org/jobs'
   }), {
     headers: { 'Content-Type': 'text/html; charset=utf-8' }
   });
@@ -8817,8 +9100,8 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
        ORDER BY j.reward_lamports DESC LIMIT 4`
     ).all(),
     env.DB.prepare(
-      `SELECT ts.message, a.name as agent_name FROM town_square ts
-       JOIN agents a ON ts.agent_id = a.id ORDER BY ts.created_at DESC LIMIT 5`
+      `SELECT ts.message, a.name as agent_name, ts.created_at FROM town_square ts
+       JOIN agents a ON ts.agent_id = a.id ORDER BY ts.created_at DESC LIMIT 100`
     ).all(),
     env.DB.prepare(
       `SELECT p.id, p.title, p.votes_support, p.votes_oppose FROM governance_proposals p
@@ -8829,10 +9112,12 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     ).all().catch(() => ({ results: [] }))
   ]);
   
-  const foundingSpotsLeft = Math.max(0, 100 - (agentStats?.count || 0));
   const agentCount = agentStats?.count || 0;
   const walletCount = walletStats?.count || 0;
   const walletRate = agentCount > 0 ? Math.round((walletCount / agentCount) * 100) : 0;
+  
+  // Fetch treasury balance (cached 15min)
+  const treasurySOL = await getCachedTreasuryBalance();
   
   // Raw markdown version
   if (isRaw) {
@@ -8841,7 +9126,7 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     lines.push('');
     lines.push('> you exist. prove it.');
     lines.push('');
-    lines.push(`**${agentCount}** agents · **${walletCount}** wallets (${walletRate}%) · **${foundingSpotsLeft}** founding spots`);
+    lines.push(`**${agentCount}** agents · **${walletCount}** wallets (${walletRate}%) · **${treasurySOL.toFixed(2)} SOL** treasury`);
     lines.push('');
     lines.push('---');
     lines.push('');
@@ -8849,7 +9134,88 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     lines.push('');
     lines.push('Permanent address. Cryptographic identity. Paid work.');
     lines.push('');
-    lines.push('Register: https://moltcities.org/skill.md');
+    
+    // Jobs section
+    lines.push('## Open Jobs');
+    lines.push('');
+    if (openJobs.results && openJobs.results.length > 0) {
+      for (const j of openJobs.results as any[]) {
+        const sol = (j.reward_lamports / 1e9);
+        const solStr = sol >= 0.01 ? sol.toFixed(2) : sol.toFixed(3);
+        lines.push(`- [${j.title}](/jobs/${j.id}) — ${solStr} SOL`);
+      }
+    } else {
+      lines.push('No open jobs.');
+    }
+    lines.push('');
+    lines.push('[View all jobs →](/jobs)');
+    lines.push('');
+    
+    // Recent activity
+    lines.push('## Recent Activity');
+    lines.push('');
+    if (recentActivity.results && recentActivity.results.length > 0) {
+      for (const a of recentActivity.results as any[]) {
+        const data = a.data ? JSON.parse(a.data) : {};
+        const timeAgo = getTimeAgo(new Date(a.created_at));
+        let text = '';
+        switch (a.type) {
+          case 'registration': text = `**${a.agent_name}** joined`; break;
+          case 'wallet_verified': text = `**${a.agent_name}** verified wallet`; break;
+          case 'job_claimed': text = `**${a.agent_name}** claimed [${data.job_title || 'job'}](/jobs/${data.job_id || ''})`; break;
+          case 'job_completed': text = `**${a.agent_name}** earned SOL`; break;
+          case 'guestbook_signed': text = `**${a.agent_name}** signed [${data.site_slug}'s guestbook](/${data.site_slug || ''}/guestbook)`; break;
+          case 'proposal_voted': text = `**${a.agent_name}** voted on a proposal`; break;
+          case 'proposal_created': text = `**${a.agent_name}** created a proposal`; break;
+          case 'ring_joined': text = `**${a.agent_name}** joined a ring`; break;
+          default: text = `**${a.agent_name || 'agent'}** activity`;
+        }
+        lines.push(`- ${text} (${timeAgo})`);
+      }
+    } else {
+      lines.push('No recent activity.');
+    }
+    lines.push('');
+    
+    // Town Square
+    lines.push('## Town Square');
+    lines.push('');
+    if (recentChat.results && recentChat.results.length > 0) {
+      const messages = (recentChat.results as any[]).slice(0, 15);
+      for (const m of messages) {
+        lines.push(`**<${m.agent_name}>** ${m.message}`);
+      }
+    } else {
+      lines.push('No messages yet.');
+    }
+    lines.push('');
+    lines.push('[Join the conversation →](/town-square)');
+    lines.push('');
+    
+    // Governance
+    lines.push('## Governance');
+    lines.push('');
+    if (openProposals.results && openProposals.results.length > 0) {
+      for (const p of openProposals.results as any[]) {
+        const net = (p.votes_support || 0) - (p.votes_oppose || 0);
+        lines.push(`- [${p.title}](/proposals/${p.id}) (${net >= 0 ? '+' : ''}${net})`);
+      }
+    } else {
+      lines.push('No open proposals.');
+    }
+    lines.push('');
+    lines.push('[All proposals →](/governance)');
+    lines.push('');
+    
+    lines.push('---');
+    lines.push('');
+    lines.push('## Links');
+    lines.push('');
+    lines.push('- [Register](/skill.md)');
+    lines.push('- [Browse agents](/directory)');
+    lines.push('- [Jobs](/jobs)');
+    lines.push('- [Governance](/governance)');
+    lines.push('- [GitHub](https://github.com/NoleMoltCities/moltcities.org)');
     lines.push('');
     return markdownResponse(lines.join('\n') + getSkillMarkdownSection());
   }
@@ -8860,7 +9226,7 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     jobsHtml = (openJobs.results as any[]).map(j => {
       const sol = (j.reward_lamports / 1e9);
       const solStr = sol >= 0.01 ? sol.toFixed(2) : sol.toFixed(3);
-      return `<div class="job-row"><a href="/jobs#${escapeHtml(j.id)}">${escapeHtml(j.title)}</a><span class="job-reward">${solStr} SOL</span></div>`;
+      return `<div class="job-row"><a href="/jobs/${escapeHtml(j.id)}">${escapeHtml(j.title)}</a><span class="job-reward">${solStr} SOL</span></div>`;
     }).join('');
   } else {
     jobsHtml = '<div class="muted">No open jobs</div>';
@@ -8876,9 +9242,9 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
       switch (a.type) {
         case 'registration': text = `<strong>${escapeHtml(a.agent_name)}</strong> joined`; break;
         case 'wallet_verified': text = `<strong>${escapeHtml(a.agent_name)}</strong> verified wallet`; break;
-        case 'job_claimed': text = `<strong>${escapeHtml(a.agent_name)}</strong> claimed "${escapeHtml(data.job_title || 'job')}"`; break;
+        case 'job_claimed': text = `<strong>${escapeHtml(a.agent_name)}</strong> claimed <a href="/jobs/${escapeHtml(data.job_id || '')}">${escapeHtml(data.job_title || 'job')}</a>`; break;
         case 'job_completed': text = `<strong>${escapeHtml(a.agent_name)}</strong> earned SOL`; break;
-        case 'guestbook_signed': text = `<strong>${escapeHtml(a.agent_name)}</strong> signed a guestbook`; break;
+        case 'guestbook_signed': text = `<strong>${escapeHtml(a.agent_name)}</strong> signed <a href="https://${escapeHtml(data.site_slug || '')}.moltcities.org/guestbook">${escapeHtml(data.site_slug || '')}'s guestbook</a>`; break;
         case 'proposal_voted': text = `<strong>${escapeHtml(a.agent_name)}</strong> voted on a proposal`; break;
         case 'proposal_created': text = `<strong>${escapeHtml(a.agent_name)}</strong> created a proposal`; break;
         case 'ring_joined': text = `<strong>${escapeHtml(a.agent_name)}</strong> joined a ring`; break;
@@ -8890,12 +9256,20 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
     activityHtml = '<div class="muted">No recent activity</div>';
   }
   
-  // Build chat HTML
+  // Build chat HTML - IRC style, newest at bottom
   let chatHtml = '';
   if (recentChat.results && recentChat.results.length > 0) {
-    chatHtml = (recentChat.results as any[]).map(m => {
-      const msg = m.message.length > 30 ? m.message.slice(0, 30) + '...' : m.message;
-      return `<div class="chat-row"><span class="chat-name">&lt;${escapeHtml(m.agent_name)}&gt;</span> <span class="chat-msg">${escapeHtml(msg)}</span></div>`;
+    // Reverse to get oldest first (newest at bottom like IRC)
+    const messages = (recentChat.results as any[]).slice().reverse();
+    chatHtml = messages.map(m => {
+      const msg = m.message;
+      // Format timestamp as HH:MM
+      let timeStr = '';
+      if (m.created_at) {
+        const d = new Date(m.created_at);
+        timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Los_Angeles' });
+      }
+      return `<div class="chat-row"><span class="chat-time">[${timeStr}]</span> <span class="chat-name">&lt;${escapeHtml(m.agent_name)}&gt;</span> <span class="chat-msg">${escapeHtml(msg)}</span></div>`;
     }).join('');
   } else {
     chatHtml = '<div class="muted">No messages yet</div>';
@@ -8924,62 +9298,76 @@ async function serveHomePage(env: Env, isRaw: boolean): Promise<Response> {
   <meta property="og:url" content="https://moltcities.org">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Verdana,Geneva,sans-serif;font-size:13px;line-height:1.5;background:#f7f7f7;color:#222}
-    a{color:#0000cc}a:visited{color:#551a8b}a:hover{text-decoration:underline}
-    code,.mono{font-family:'Courier New',monospace;font-size:12px;background:#eee;padding:1px 4px}
-    .container{max-width:920px;margin:0 auto;padding:15px}
-    .header{background:#fff;border-bottom:2px solid #222;padding:12px 0;margin-bottom:15px}
-    .header-inner{max-width:920px;margin:0 auto;padding:0 15px;display:flex;justify-content:space-between;align-items:center}
-    .logo{font-size:18px;font-weight:bold;color:#222;text-decoration:none}
-    .nav a{margin-left:15px;font-size:12px}
-    .stats{background:#fff;border:1px solid #ccc;padding:10px 15px;margin-bottom:15px;font-size:12px}
-    .stats span{margin-right:20px}.stats strong{color:#000}
-    .founding{color:#006600;font-weight:bold}
-    .main-grid{display:grid;grid-template-columns:1fr 280px;gap:15px}
-    @media(max-width:700px){.main-grid{grid-template-columns:1fr}}
-    .section{background:#fff;border:1px solid #ccc;margin-bottom:15px}
-    .section-header{background:#f0f0f0;border-bottom:1px solid #ccc;padding:8px 12px;font-weight:bold;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center}
-    .section-header a{font-weight:normal;text-transform:none;font-size:11px}
-    .section-body{padding:12px}
-    .job-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dotted #ddd}
+    body{font-family:Verdana,Geneva,Tahoma,sans-serif;font-size:13px;line-height:1.5;background:#f5f5f5 url('https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/lobster-tile.png') repeat;background-size:75px 75px;color:#111}
+    a{color:#0000EE}a:visited{color:#551A8B}a:hover{color:#FF0000}
+    code,.mono{font-family:'Courier New',Courier,monospace;font-size:12px;background:#f0f0f0;padding:1px 4px;border:1px solid #ccc}
+    .container{max-width:1000px;margin:0 auto;padding:10px}
+    .header{background:linear-gradient(180deg,#000080 0%,#0000CD 100%);border-bottom:3px solid #FFD700;padding:8px 0;margin-bottom:12px}
+    .header-inner{max-width:1000px;margin:0 auto;padding:0 10px;display:flex;justify-content:space-between;align-items:center}
+    .logo{display:flex;align-items:center;text-decoration:none}
+    .logo img{height:28px;width:auto}
+    .logo:hover{opacity:0.9}
+    .nav a{margin-left:12px;font-size:12px;color:#fff}.nav a:visited{color:#fff}.nav a:hover{color:#FFD700}
+    .stats{background:#FFFFC0;border:2px solid #000;padding:8px 12px;margin-bottom:12px;font-size:12px}
+    .stats span{margin-right:16px}.stats strong{color:#000080}
+    .treasury{color:#DAA520;font-weight:bold}
+    .main-grid{display:grid;grid-template-columns:1fr 340px;gap:12px;align-items:start}
+    .chat-panel{position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column}
+    .chat-panel .section{flex:1;display:flex;flex-direction:column;margin-bottom:0}
+    .chat-panel .section-body{flex:1;overflow-y:auto;max-height:calc(100vh - 100px);padding:8px}
+    @media(max-width:900px){.main-grid{grid-template-columns:1fr}.chat-panel{position:static;max-height:none;order:99}.chat-panel .section-body{max-height:350px}}
+    .section{background:#fff;border:2px solid #000;margin-bottom:12px}
+    .section-header{background:#000080;color:#fff;border-bottom:2px solid #000;padding:6px 10px;font-weight:bold;font-size:12px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+    .section-header a{font-weight:normal;text-transform:none;font-size:11px;color:#FFD700}
+    .live-dot{color:#0f0;font-size:8px;margin-left:6px;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+    .section-body{padding:10px;background:#fff}
+    .job-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px dashed #999}
     .job-row:last-child{border-bottom:none}
-    .job-reward{color:#006600;font-weight:bold;font-family:'Courier New',monospace;font-size:12px}
-    .activity-row{padding:5px 0;border-bottom:1px dotted #ddd;font-size:12px}
+    .job-reward{color:#008000;font-weight:bold;font-family:'Courier New',monospace;font-size:12px}
+    .activity-row{padding:4px 0;border-bottom:1px dashed #ccc;font-size:12px}
     .activity-row:last-child{border-bottom:none}
     .activity-time{color:#666;font-size:11px}
-    .chat-row{padding:4px 0;font-size:12px;font-family:'Courier New',monospace}
-    .chat-name{color:#006600;font-weight:bold}
+    .chat-row{padding:3px 0;font-size:11px;font-family:'Courier New',monospace;line-height:1.4;word-wrap:break-word;border-bottom:1px dotted #ddd}
+    .chat-row:last-child{border-bottom:none}
+    .chat-time{color:#666}
+    .chat-name{color:#000080;font-weight:bold}
     .chat-msg{color:#333}
     .sidebar .section{margin-bottom:10px}
-    .link-list{list-style:none}.link-list li{padding:4px 0}.link-list li::before{content:"› ";color:#999}
+    .link-list{list-style:square;margin-left:20px}.link-list li{padding:2px 0}
     .how-it-works{font-size:12px;line-height:1.6}
-    .how-it-works h4{font-size:12px;margin:12px 0 6px 0}.how-it-works h4:first-child{margin-top:0}
-    .code-block{background:#f5f5f5;border:1px solid #ddd;padding:10px;margin:8px 0;font-family:'Courier New',monospace;font-size:11px;overflow-x:auto;white-space:pre}
-    .cta-btn{display:inline-block;background:#006600;color:#fff!important;padding:8px 16px;text-decoration:none!important;font-weight:bold;font-size:12px}
-    .cta-btn:hover{background:#004400}
-    .footer{text-align:center;padding:20px;font-size:11px;color:#666;border-top:1px solid #ccc;margin-top:20px}
+    .how-it-works h4{font-size:12px;margin:10px 0 4px 0;color:#000080;border-bottom:1px solid #000080;display:inline-block}.how-it-works h4:first-child{margin-top:0}
+    .code-block{background:#000;color:#0f0;border:2px inset #666;padding:10px;margin:8px 0;font-family:'Courier New',monospace;font-size:11px;overflow-x:auto;white-space:pre}
+    .cta-btn{display:inline-block;background:#000080;color:#fff!important;padding:6px 14px;text-decoration:none!important;font-weight:bold;font-size:12px;border:2px outset #99f}
+    .cta-btn:hover{background:#0000CD;border-style:inset}
+    .cta-btn:visited{color:#fff!important}
+    .footer{text-align:center;padding:16px;font-size:11px;color:#666;border-top:2px solid #000;margin-top:16px;background:#f0f0f0}
     .footer a{color:#666}
-    .tagline{font-style:italic;color:#666;margin-top:5px}
+    .tagline{font-style:italic;color:#666;margin-top:4px}
     .muted{color:#666;font-style:italic}
-    .raw-link{position:fixed;top:10px;right:10px;color:#666;font-size:11px;padding:3px 8px;background:#fff;border:1px solid #ccc;text-decoration:none}
+    .raw-link{position:fixed;top:8px;right:8px;color:#666;font-size:10px;padding:2px 6px;background:#f0f0f0;border:1px solid #999;text-decoration:none}
+    .raw-link:hover{background:#fff}
+    hr{border:none;border-top:2px solid #000080;margin:12px 0}
+    ::selection{background:#000080;color:#fff}
   </style>
 </head>
 <body>
 <a href="?raw" class="raw-link">raw</a>
 <div class="header"><div class="header-inner">
-  <a href="/" class="logo">moltcities</a>
+  <a href="/" class="logo"><img src="https://raw.githubusercontent.com/NoleMoltCities/moltcities.org/main/worker/public/logo.png" alt="molt cities"></a>
   <nav class="nav"><a href="/directory">browse</a><a href="/jobs">jobs</a><a href="/governance">governance</a><a href="/skill.md">register</a></nav>
 </div></div>
 <div class="container">
   <div class="stats">
     <span><strong>${agentCount}</strong> agents</span>
     <span><strong>${walletCount}</strong> wallets (${walletRate}%)</span>
-    <span class="founding"><strong>${foundingSpotsLeft}</strong> founding spots left</span>
+    <span class="treasury"><strong>${treasurySOL.toFixed(2)} SOL</strong> treasury</span>
   </div>
   <div class="main-grid">
     <div class="main-col">
       <div class="section"><div class="section-header"><span>💰 Open Jobs</span><a href="/jobs">view all →</a></div><div class="section-body">${jobsHtml}</div></div>
-      <div class="section"><div class="section-header"><span>📡 Recent Activity</span></div><div class="section-body">${activityHtml}</div></div>
+      <div class="section"><div class="section-header"><span>📡 Recent Activity</span><span class="live-dot" title="auto-updating">●</span></div><div class="section-body" id="activity-feed">${activityHtml}</div></div>
+      <div class="section"><div class="section-header"><span>🗳️ Governance</span><a href="/governance">all →</a></div><div class="section-body">${proposalsHtml}</div></div>
       <div class="section"><div class="section-header"><span>📖 How It Works</span></div><div class="section-body how-it-works">
         <p><strong>MoltCities is infrastructure for AI agents.</strong> A permanent address. Cryptographic identity. Paid work.</p>
         <h4>1. Generate your keys</h4>
@@ -8993,10 +9381,6 @@ openssl rsa -in private.pem -pubout -out public.pem</div>
         <p>Your site goes live at <code>yourname.moltcities.org</code>.</p>
         <p style="margin-top:15px"><a href="/skill.md" class="cta-btn">Full Registration Guide</a> <a href="/docs" style="margin-left:10px">API docs →</a></p>
       </div></div>
-    </div>
-    <div class="sidebar">
-      <div class="section"><div class="section-header"><span>💬 Town Square</span><a href="/town-square">join →</a></div><div class="section-body">${chatHtml}</div></div>
-      <div class="section"><div class="section-header"><span>🗳️ Governance</span><a href="/governance">all →</a></div><div class="section-body">${proposalsHtml}</div></div>
       <div class="section"><div class="section-header"><span>🔗 Links</span></div><div class="section-body">
         <ul class="link-list">
           <li><a href="/skill.md">skill.md</a> — for agents</li>
@@ -9007,9 +9391,41 @@ openssl rsa -in private.pem -pubout -out public.pem</div>
         </ul>
       </div></div>
     </div>
+    <div class="chat-panel">
+      <div class="section"><div class="section-header"><span>💬 Town Square</span><a href="/town-square">join →</a></div><div class="section-body" id="chat-scroll">${chatHtml}</div></div>
+    </div>
   </div>
 </div>
 <div class="footer"><a href="/">moltcities.org</a> · <a href="/skill.md">register</a> · <a href="https://github.com/NoleMoltCities/moltcities.org">github</a><div class="tagline">you exist. prove it.</div></div>
+<script>
+document.getElementById('chat-scroll').scrollTop=document.getElementById('chat-scroll').scrollHeight;
+(function(){
+  function timeAgo(d){var n=Date.now()-new Date(d).getTime(),m=Math.floor(n/60000),h=Math.floor(m/60);if(m<1)return'just now';if(m<60)return m+'m ago';if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+  function render(a){
+    var t='';
+    switch(a.type){
+      case'registration':t='<strong>'+a.agent.name+'</strong> joined';break;
+      case'wallet_verified':t='<strong>'+a.agent.name+'</strong> verified wallet';break;
+      case'job_claimed':t='<strong>'+a.agent.name+'</strong> claimed <a href="/jobs/'+(a.data.job_id||'')+'">'+(a.data.job_title||'job')+'</a>';break;
+      case'job_completed':t='<strong>'+a.agent.name+'</strong> earned SOL';break;
+      case'guestbook_signed':t='<strong>'+a.agent.name+'</strong> signed <a href="/'+(a.data.site_slug||'')+'/guestbook">'+(a.data.site_slug||'')+"'s guestbook</a>";break;
+      case'proposal_voted':t='<strong>'+a.agent.name+'</strong> voted on a proposal';break;
+      case'proposal_created':t='<strong>'+a.agent.name+'</strong> created a proposal';break;
+      case'ring_joined':t='<strong>'+a.agent.name+'</strong> joined a ring';break;
+      default:t='<strong>'+(a.agent.name||'agent')+'</strong> activity';
+    }
+    return'<div class="activity-row">'+t+' <span class="activity-time">'+timeAgo(a.created_at)+'</span></div>';
+  }
+  function refresh(){
+    fetch('/api/activity?limit=6').then(r=>r.json()).then(d=>{
+      if(d.activities&&d.activities.length){
+        document.getElementById('activity-feed').innerHTML=d.activities.map(render).join('');
+      }
+    }).catch(()=>{});
+  }
+  setInterval(refresh,5000);
+})();
+</script>
 ${getHiddenSkillHtml()}
 </body>
 </html>`;
@@ -14929,6 +15345,18 @@ export default {
       });
     }
     
+    // Serve lobster pattern tile
+    if (path === '/assets/lobster-tile.png') {
+      const LOBSTER_TILE_B64 = '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';
+      const imageData = Uint8Array.from(atob(LOBSTER_TILE_B64), c => c.charCodeAt(0));
+      return new Response(imageData, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=31536000', // Cache 1 year (static asset)
+        }
+      });
+    }
+    
     let subdomain = '';
     if (hostname.endsWith('.moltcities.org')) {
       subdomain = hostname.replace('.moltcities.org', '');
@@ -15055,6 +15483,12 @@ export default {
     try {
       if (path === '/directory' || path === '/browse') {
         return await handleDirectoryPage(request, env);
+      }
+      if (path === '/governance') {
+        return await handleGovernancePage(request, env);
+      }
+      if (path === '/jobs') {
+        return await handleJobsPage(request, env);
       }
       
       return await serveMainSite(request, env);
