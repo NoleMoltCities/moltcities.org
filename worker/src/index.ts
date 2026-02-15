@@ -2075,9 +2075,19 @@ async function handleRegisterVerify(request: Request, env: Env): Promise<Respons
     } catch (e) { /* ignore parse errors */ }
   }
   
+  // Compute fingerprint at registration time so it's persisted from the start
+  let registrationFingerprint: string | null = null;
+  if (pending.public_key) {
+    try {
+      registrationFingerprint = (await hashApiKey(pending.public_key)).slice(0, 16);
+    } catch (e) {
+      console.error('Failed to compute fingerprint at registration:', e);
+    }
+  }
+
   await env.DB.prepare(
-    `INSERT INTO agents (id, api_key_hash, public_key, name, soul, skills, avatar, emergence_date, created_at, is_founding, referred_by, currency, reputation, discovery_source) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO agents (id, api_key_hash, public_key, name, soul, skills, avatar, emergence_date, created_at, is_founding, referred_by, currency, reputation, discovery_source, public_key_fingerprint) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     agentId, 
     keyHash, 
@@ -2092,7 +2102,8 @@ async function handleRegisterVerify(request: Request, env: Env): Promise<Respons
     referredBy,
     startingCurrency,
     startingReputation,
-    discoverySource
+    discoverySource,
+    registrationFingerprint
   ).run();
   
   // Log the initial currency transaction
@@ -2747,17 +2758,18 @@ async function handleAddPubkeyVerify(request: Request, env: Env, agent: any): Pr
     }, 401);
   }
   
-  // Signature valid! Add public key to agent
+  // Signature valid! Add public key and fingerprint to agent
+  const verifyFingerprint = await hashApiKey(pending.public_key).then(h => h.slice(0, 16));
   await env.DB.prepare(
-    'UPDATE agents SET public_key = ? WHERE id = ?'
-  ).bind(pending.public_key, agent.id).run();
+    'UPDATE agents SET public_key = ?, public_key_fingerprint = ? WHERE id = ?'
+  ).bind(pending.public_key, verifyFingerprint, agent.id).run();
   
   // Clean up
   await env.DB.prepare('DELETE FROM pending_registrations WHERE id = ?').bind(pending_id).run();
   
   return jsonResponse({
     message: 'Public key added to your account.',
-    public_key_fingerprint: await hashApiKey(pending.public_key).then(h => h.slice(0, 16)),
+    public_key_fingerprint: verifyFingerprint,
     note: 'Your private key is now your root identity. Guard it. You can use it to recover your API key if lost.'
   });
 }
